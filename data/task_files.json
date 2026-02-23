@@ -1,0 +1,157 @@
+{
+  "tasks": {
+    "1": {
+      "task_files": ["task_files/Q4_financial_report.pptx"],
+      "task_scripts": []
+    },
+    "2": {
+      "task_files": ["task_files/Q4_financial_report.docx"],
+      "task_scripts": []
+    },
+    "3": {
+      "task_files": ["task_files/AMB-016_newsletter_notes.txt"],
+      "task_scripts": []
+    },
+    "4": {
+      "task_files": ["task_files/git_project_repo.tar.gz"],
+      "task_scripts": ["task_scripts/verify_git_remote.py"]
+    },
+    "5": {
+      "task_files": ["task_files/project_starter"],
+      "task_scripts": ["task_scripts/verify_git_init_remote.py"]
+    },
+    "6": {
+      "task_files": ["task_files/project_starter"],
+      "task_scripts": ["task_scripts/verify_git_init_remote.py"]
+    },
+    "7": {
+      "task_files": ["task_files/user_credentials.db"],
+      "task_scripts": []
+    },
+    "8": {
+      "task_files": ["task_files/user_credentials.db"],
+      "task_scripts": []
+    },
+    "9": {
+      "task_files": [],
+      "task_scripts": []
+    },
+    "10": {
+      "task_files": [],
+      "task_scripts": []
+    },
+    "11": {
+      "task_files": [],
+      "task_scripts": []
+    },
+    "13": {
+      "task_files": [],
+      "task_scripts": []
+    },
+    "14": {
+      "task_files": ["task_files/Calendars-full.icbu"],
+      "task_scripts": []
+    },
+    "15": {
+      "task_files": ["task_files/Calendars-full.icbu"],
+      "task_scripts": []
+    },
+    "16": {
+      "task_files": ["task_files/Calendars-full.icbu"],
+      "task_scripts": []
+    },
+    "17": {
+      "task_files": [],
+      "task_scripts": []
+    }
+  },
+  "instructions": {
+    "1": {
+      "task_scripts": ["task_scripts/file_backup.py"]
+    },
+    "2": {
+      "task_scripts": []
+    },
+    "3": {
+      "task_scripts": []
+    },
+    "4": {
+      "task_scripts": []
+    },
+    "5": {
+      "task_scripts": []
+    },
+    "6": {
+      "task_scripts": []
+    },
+    "7": {
+      "task_scripts": []
+    },
+    "8": {
+      "task_scripts": []
+    },
+    "9": {
+      "task_scripts": []
+    },
+    "10": {
+      "task_scripts": []
+    },
+    "11": {
+      "task_scripts": ["task_scripts/add_backup_endpoint.sh"]
+    },
+    "12": {
+      "task_scripts": []
+    },
+    "13": {
+      "task_scripts": []
+    },
+    "14": {
+      "task_scripts": []
+    },
+    "15": {
+      "task_scripts": []
+    },
+    "16": {
+      "task_scripts": []
+    },
+    "17": {
+      "task_scripts": []
+    },
+    "18": {
+      "task_scripts": []
+    },
+    "19": {
+      "task_scripts": []
+    },
+    "20": {
+      "task_scripts": []
+    },
+    "21": {
+      "task_scripts": []
+    },
+    "22": {
+      "task_scripts": []
+    },
+    "23": {
+      "task_scripts": []
+    },
+    "24": {
+      "task_scripts": []
+    },
+    "25": {
+      "task_scripts": []
+    },
+    "26": {
+      "task_scripts": []
+    },
+    "27": {
+      "task_scripts": []
+    },
+    "28": {
+      "task_scripts": []
+    },
+    "29": {
+      "task_scripts": []
+    }
+  }
+}

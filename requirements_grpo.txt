@@ -1,0 +1,30 @@
+# Requirements for GRPO-based injection optimization
+# Install with: pip install -r requirements_grpo.txt
+
+# Core dependencies
+trl>=0.28.0
+transformers>=4.40.0
+datasets>=2.14.0
+accelerate>=0.30.0
+torch>=2.0.0
+
+# Training optimization
+deepspeed>=0.14.0  # For multi-GPU training
+peft>=0.10.0       # For LoRA
+bitsandbytes>=0.43.0  # For quantization
+
+# Fast generation
+vllm>=0.5.0  # Optional but highly recommended
+
+# Diversity rewards
+nltk>=3.8.0  # For BLEU
+bert-score>=0.3.13  # Optional: for BERTScore diversity
+
+# Multi-victim evaluation
+anthropic>=0.25.0   # For Claude victims
+openai>=1.30.0      # For GPT victims
+google-generativeai>=0.5.0  # For Gemini victims
+
+# Utilities
+tqdm>=4.66.0
+numpy>=1.24.0

@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: instruct-bench-agent
+    env_file:
+      - .env
+    volumes:
+      - ../sandbox_runs:/sandbox_runs
+    working_dir: /workspace
