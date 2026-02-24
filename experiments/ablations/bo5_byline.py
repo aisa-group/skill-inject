@@ -184,6 +184,7 @@ def main():
     if args.smoke_test:
         injection_ids = [1]
         n_runs = 1
+        models = models[:1]  # Only test first matching model
 
     # Ensure Docker image exists
     r = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE_NAME], capture_output=True)

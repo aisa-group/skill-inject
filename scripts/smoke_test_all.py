@@ -70,18 +70,26 @@ EXPERIMENTS: list[dict] = [
         "supports_force": False,
     },
     {
+        # bo5_byline has its own hardcoded model list (ABLATION_MODELS).
+        # In smoke-test mode it picks the first matching model per agent,
+        # so we run it once per agent and omit --model.
         "name": "ablation/bo5_byline",
         "script": "experiments/ablations/bo5_byline.py",
         "args": ["--smoke-test"],
         "skip_eval_flag": "--skip-eval",
         "supports_force": False,
+        "once_per_agent": True,
+        "supported_agents": ["claude", "codex", "gemini"],
     },
     {
+        # bo4_bytask likewise has its own hardcoded model list.
         "name": "ablation/bo4_bytask",
         "script": "experiments/ablations/bo4_bytask.py",
         "args": ["--smoke-test"],
         "skip_eval_flag": "--skip-eval",
         "supports_force": False,
+        "once_per_agent": True,
+        "supported_agents": ["claude", "codex", "gemini"],
     },
 ]
 
@@ -122,13 +130,12 @@ def run_experiment(
     """Run a single experiment for one agent/model. Returns result dict."""
     name = experiment["name"]
     script = PROJECT_ROOT / experiment["script"]
+    once_per_agent = experiment.get("once_per_agent", False)
 
-    cmd = [
-        sys.executable, str(script),
-        "--agent", agent,
-        "--model", model,
-        "--timeout", str(timeout),
-    ]
+    cmd = [sys.executable, str(script), "--agent", agent]
+    if not once_per_agent:
+        cmd += ["--model", model]
+    cmd += ["--timeout", str(timeout)]
     if experiment.get("supports_force", False):
         cmd.append("--force")
     cmd += experiment["args"]
@@ -139,13 +146,13 @@ def run_experiment(
     result = {
         "experiment": name,
         "agent": agent,
-        "model": model,
+        "model": model if not once_per_agent else "(own list)",
         "status": "skipped",
         "duration": 0.0,
         "error": None,
     }
 
-    label = f"{name} / {agent} / {model}"
+    label = f"{name} / {agent}" if once_per_agent else f"{name} / {agent} / {model}"
 
     if dry_run:
         print(f"  [dry-run] {label}")
@@ -303,8 +310,18 @@ def main() -> None:
             print(f"[error] No experiments matching '{args.experiment}'")
             sys.exit(1)
 
-    total_runs = len(agent_models) * len(experiments)
-    print(f"\nSmoke test: {len(agent_models)} agent/model combo(s) x "
+    # Count runs: once_per_agent experiments run once per unique agent
+    unique_agents = list(dict.fromkeys(a for a, _ in agent_models))
+    total_runs = 0
+    for e in experiments:
+        supported = e.get("supported_agents")
+        if e.get("once_per_agent"):
+            total_runs += sum(1 for a in unique_agents
+                              if not supported or a in supported)
+        else:
+            total_runs += sum(1 for a, _ in agent_models
+                              if not supported or a in supported)
+    print(f"\nSmoke test: {len(agent_models)} agent/model combo(s), "
           f"{len(experiments)} experiment(s) = {total_runs} run(s)\n")
 
     for agent, model in agent_models:
@@ -324,9 +341,24 @@ def main() -> None:
     results: list[dict] = []
     t0 = time.time()
 
+    # Track which once_per_agent experiments have already been run per agent
+    agent_done: dict[tuple[str, str], bool] = {}  # (agent, experiment_name) -> True
+
     for agent, model in agent_models:
         print(f"\n--- {agent} / {model} ---")
         for experiment in experiments:
+            # Skip experiments not supported for this agent
+            supported = experiment.get("supported_agents")
+            if supported and agent not in supported:
+                continue
+
+            # once_per_agent experiments run only once per agent (first model)
+            if experiment.get("once_per_agent", False):
+                key = (agent, experiment["name"])
+                if key in agent_done:
+                    continue
+                agent_done[key] = True
+
             r = run_experiment(
                 experiment=experiment,
                 agent=agent,

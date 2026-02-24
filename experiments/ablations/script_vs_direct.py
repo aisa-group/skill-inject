@@ -88,7 +88,10 @@ def main():
         if args.description_injection:
             cmd.append("--description-injection")
         if args.smoke_test:
-            cmd += ["--injection-id", "1"]
+            # Pick the first injection from this type's filtered file
+            with ff.open() as _f:
+                first_id = json.load(_f)[0]["id"]
+            cmd += ["--injection-id", str(first_id), "--first-task-only"]
         print(f"\n[build] {itype} sandboxes...")
         subprocess.run(cmd, check=True)
         agent_dirs[itype] = ad
