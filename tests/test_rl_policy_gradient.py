@@ -338,7 +338,7 @@ class TestIntegration:
 
         # Compute gradients
         gradients = trainer.compute_policy_gradient(rollouts)
-        assert gradients["avg_reward"] == 0.8
+        assert gradients["avg_reward"] == pytest.approx(0.8)
 
         # Update policy
         initial_baseline = trainer.baseline

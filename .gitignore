@@ -12,6 +12,14 @@ scripts/plots/
 docker/.env
 apptainer/.env
 
+# Evolutionary optimization / RL ablations
+experiments/ablations/evolutionary_optimization.py
+experiments/ablations/grpo_injection_optimization.py
+experiments/ablations/rl_policy_gradient.py
+tests/test_evolutionary_optimization.py
+tests/test_rl_policy_gradient.py
+requirements_grpo.txt
+
 # Python
 __pycache__/
 *.pyc
@@ -22,3 +30,4 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+

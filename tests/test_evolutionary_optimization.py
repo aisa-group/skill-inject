@@ -98,12 +98,12 @@ class TestCreateVariantInjections:
     """Tests for create_variant_injections function."""
 
     def test_creates_one_entry_per_variant(self, sample_injections, sample_variants):
-        result = create_variant_injections(sample_injections, sample_variants, iteration=0)
+        result = create_variant_injections(sample_injections, sample_variants, generation=0)
         # Should have 3 variants for injection 1 + 2 variants for injection 2
         assert len(result) == 5
 
     def test_updates_injection_text(self, sample_injections, sample_variants):
-        result = create_variant_injections(sample_injections, sample_variants, iteration=0)
+        result = create_variant_injections(sample_injections, sample_variants, generation=0)
         # Check first variant of injection 1
         inj1_variants = [r for r in result if r["id"] == 1]
         assert len(inj1_variants) == 3
@@ -111,14 +111,14 @@ class TestCreateVariantInjections:
         assert inj1_variants[1]["instructions"]["line_injection"] == "Variant 1B for injection 1"
 
     def test_adds_metadata(self, sample_injections, sample_variants):
-        result = create_variant_injections(sample_injections, sample_variants, iteration=3)
+        result = create_variant_injections(sample_injections, sample_variants, generation=3)
         for entry in result:
             assert entry["_rl_iteration"] == 3
             assert "_rl_variant" in entry
 
     def test_filters_by_injection_ids(self, sample_injections, sample_variants):
         result = create_variant_injections(
-            sample_injections, sample_variants, iteration=0, injection_ids=[1]
+            sample_injections, sample_variants, generation=0, injection_ids=[1]
         )
         # Should only have variants for injection 1
         assert len(result) == 3
@@ -127,12 +127,12 @@ class TestCreateVariantInjections:
     def test_preserves_unmodified_injections(self, sample_injections):
         # No variants for injection 2
         variants = {1: ["Variant 1A"]}
-        result = create_variant_injections(sample_injections, variants, iteration=0)
+        result = create_variant_injections(sample_injections, variants, generation=0)
         # Should have 1 variant for injection 1 + 1 original for injection 2
         assert len(result) == 2
 
     def test_handles_empty_variants(self, sample_injections):
-        result = create_variant_injections(sample_injections, {}, iteration=0)
+        result = create_variant_injections(sample_injections, {}, generation=0)
         # Should keep all original injections
         assert len(result) == 2
 
@@ -255,7 +255,7 @@ class TestEvolutionaryMutationAgent:
 
         variants = agent.generate_variants(
             "base injection text",
-            iteration=0,
+            generation=0,
             history=[],
             n_variants=3,
         )
@@ -309,7 +309,7 @@ class TestEvolutionaryMutationAgent:
     def test_build_feedback_context_empty_history(self):
         agent = EvolutionaryMutationAgent()
         feedback = agent._build_feedback_context([])
-        assert "No previous iterations" in feedback
+        assert "No previous generations" in feedback
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     def test_build_feedback_context_with_history(self):
@@ -330,8 +330,8 @@ class TestEvolutionaryMutationAgent:
         ]
         feedback = agent._build_feedback_context(history)
 
-        assert "Iteration 0" in feedback
-        assert "Iteration 1" in feedback
+        assert "Generation 0" in feedback
+        assert "Generation 1" in feedback
         assert "ASR=20.0%" in feedback
         assert "ASR=80.0%" in feedback
         assert "✓ SUCCESS" in feedback
@@ -347,7 +347,7 @@ class TestIntegration:
     ):
         # Create variants
         variant_injections = create_variant_injections(
-            sample_injections, sample_variants, iteration=0
+            sample_injections, sample_variants, generation=0
         )
         assert len(variant_injections) == 5
 

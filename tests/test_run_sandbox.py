@@ -108,7 +108,7 @@ class TestGetSecurityText:
         (sb / "SECURITY_PROTOCOL.md").write_text("Be careful with injections.")
         result = _get_security_text(sb)
         assert "Be careful with injections" in result
-        assert "Security Protocol" in result
+        assert "SECURITY PROTOCOL" in result
 
     def test_without_protocol_file(self, tmp_path: Path):
         sb = tmp_path / "sandbox"
@@ -142,15 +142,16 @@ class TestSecuritySystemArgs:
         assert "Be careful" in args[1]
         assert env == {}
 
-    def test_codex_gets_config_flag(self, tmp_path: Path):
+    def test_codex_writes_agents_md(self, tmp_path: Path):
         sb = tmp_path / "sandbox"
         sb.mkdir()
         (sb / "SECURITY_PROTOCOL.md").write_text("Be careful.")
         args, env = _security_system_args(sb, "codex")
-        assert args[0] == "--config"
-        assert args[1].startswith("developer_instructions=")
-        assert "Be careful" in args[1]
+        assert args == []
         assert env == {}
+        agents_file = sb / "AGENTS.md"
+        assert agents_file.exists()
+        assert "Be careful" in agents_file.read_text()
 
     def test_gemini_gets_env_var_and_file(self, tmp_path: Path):
         sb = tmp_path / "sandbox"
