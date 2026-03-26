@@ -1,0 +1,10 @@
+executable = /bin/bash
+arguments = /lustre/home/dschmotz/skill-inject/apptainer/debug_build3.sh
+output = /lustre/home/dschmotz/skill-inject/apptainer/debug3_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/debug3_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/debug3_$(Cluster).log
+request_cpus   = 2
+request_memory = 4096
+request_disk   = 10G
++BypassLXCfs = "true"
+queue

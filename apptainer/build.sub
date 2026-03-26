@@ -1,0 +1,13 @@
+executable = /bin/bash
+arguments = /lustre/home/dschmotz/skill-inject/apptainer/build_cluster.sh
+output = /lustre/home/dschmotz/skill-inject/apptainer/build_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/build_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/build_$(Cluster).log
+
+request_cpus   = 4
+request_memory = 16384
+request_disk   = 40G
+
++BypassLXCfs = "true"
+
+queue

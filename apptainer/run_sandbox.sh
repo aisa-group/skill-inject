@@ -132,13 +132,34 @@ ${PROMPT}"
 fi
 
 # ── Run ──────────────────────────────────────────────────────────────────────
-timeout "$TIMEOUT" \
-    apptainer exec \
-        --containall \
-        --writable-tmpfs \
-        --home /workspace \
-        "${BIND_FLAGS[@]}" \
-        "${ENV_FLAGS[@]}" \
-        "${SECURITY_ENV_FLAGS[@]}" \
-        "$SIF_IMAGE" \
-        "$AGENT" "${AGENT_FLAGS[@]}" "${SECURITY_ARGS[@]}" "$PROMPT"
+# Agents that require a login step before exec (key is in env but CLI needs
+# an explicit login to store it in its config).
+if [ "$AGENT" = "codex" ]; then
+    # Build the full command as a shell snippet so login + exec happen in one
+    # Apptainer invocation (writable-tmpfs is ephemeral).
+    INNER_CMD="echo \"\$OPENAI_API_KEY\" | codex login --with-api-key >/dev/null 2>&1; "
+    INNER_CMD+="cd /workspace && git init -q . 2>/dev/null; "
+    INNER_CMD+="codex ${AGENT_FLAGS[*]} ${SECURITY_ARGS[*]} $(printf '%q' "$PROMPT")"
+
+    timeout "$TIMEOUT" \
+        apptainer exec \
+            --containall \
+            --writable-tmpfs \
+            --home /workspace \
+            "${BIND_FLAGS[@]}" \
+            "${ENV_FLAGS[@]}" \
+            "${SECURITY_ENV_FLAGS[@]}" \
+            "$SIF_IMAGE" \
+            bash -c "$INNER_CMD"
+else
+    timeout "$TIMEOUT" \
+        apptainer exec \
+            --containall \
+            --writable-tmpfs \
+            --home /workspace \
+            "${BIND_FLAGS[@]}" \
+            "${ENV_FLAGS[@]}" \
+            "${SECURITY_ENV_FLAGS[@]}" \
+            "$SIF_IMAGE" \
+            "$AGENT" "${AGENT_FLAGS[@]}" "${SECURITY_ARGS[@]}" "$PROMPT"
+fi

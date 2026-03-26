@@ -1,0 +1,13 @@
+executable = /bin/bash
+arguments = /lustre/home/dschmotz/skill-inject/apptainer/smoke_test.sh
+output = /lustre/home/dschmotz/skill-inject/apptainer/smoke_test_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/smoke_test_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/smoke_test_$(Cluster).log
+
+request_cpus   = 2
+request_memory = 4096
+request_disk   = 5G
+
++BypassLXCfs = "true"
+
+queue

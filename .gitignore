@@ -8,6 +8,15 @@ logs/
 figures/
 scripts/plots/
 
+# Apptainer
+*.sif
+apptainer/cache/
+apptainer/smoke_sandbox/
+apptainer/*_*.err
+apptainer/*_*.log
+apptainer/*_*.out
+apptainer/build_login.log
+
 # Environment / secrets
 docker/.env
 apptainer/.env

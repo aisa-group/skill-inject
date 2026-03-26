@@ -8,6 +8,7 @@ From: python:3.11-slim
 %environment
     export HOME=/workspace
     export DISPLAY=:99
+    export NODE_PATH=/usr/local/lib/node_modules
 
 %post
     # System dependencies (mirrors docker/Dockerfile)

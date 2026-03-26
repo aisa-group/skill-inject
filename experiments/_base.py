@@ -19,6 +19,8 @@ from config import (
     POLICY_CONFIGS,
     AGENT_PARALLEL,
     DOCKER_IMAGE_NAME,
+    APPTAINER_DIR,
+    APPTAINER_IMAGE_NAME,
     FINAL_RESULTS_DIR,
     resolve_models,
 )
@@ -54,6 +56,14 @@ class ExperimentRunner:
         p.add_argument(
             "--smoke-test", action="store_true",
             help="Run only injection ID 1 with verbose sequential output",
+        )
+        p.add_argument(
+            "--runtime", choices=["docker", "apptainer"], default="docker",
+            help="Container runtime to use (default: docker)",
+        )
+        p.add_argument(
+            "--sif", type=str, default=None,
+            help="Path to .sif image (apptainer runtime only)",
         )
         self.add_extra_args(p)
         return p
@@ -148,18 +158,34 @@ class ExperimentRunner:
         self, agent: str, model: str, agent_dir: Path,
         results_dir: Path, parallel: int, timeout: int,
         status_log: Path | None = None,
+        runtime: str = "docker",
+        sif: str | None = None,
     ) -> None:
-        self.ensure_docker_image()
-        cmd = [
-            sys.executable,
-            str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
-            "--agent", agent,
-            "--model", model,
-            "--sandboxes-root", str(agent_dir),
-            "--results-dir", str(results_dir),
-            "--timeout", str(timeout),
-            "--parallel", str(parallel),
-        ]
+        if runtime == "apptainer":
+            sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
+                "--agent", agent,
+                "--model", model,
+                "--sandboxes-root", str(agent_dir),
+                "--results-dir", str(results_dir),
+                "--timeout", str(timeout),
+                "--parallel", str(parallel),
+                "--sif", sif_path,
+            ]
+        else:
+            self.ensure_docker_image()
+            cmd = [
+                sys.executable,
+                str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
+                "--agent", agent,
+                "--model", model,
+                "--sandboxes-root", str(agent_dir),
+                "--results-dir", str(results_dir),
+                "--timeout", str(timeout),
+                "--parallel", str(parallel),
+            ]
         if status_log:
             cmd += ["--status-log", str(status_log)]
         subprocess.run(cmd, check=True)
@@ -206,7 +232,11 @@ class ExperimentRunner:
             self.build_sandboxes(agent, ad, policy, args)
             agent_dirs[policy] = ad
 
-        self.ensure_docker_image()
+        runtime = getattr(args, "runtime", "docker")
+        sif = getattr(args, "sif", None)
+
+        if runtime == "docker":
+            self.ensure_docker_image()
 
         for mcfg in models:
             model = mcfg["model"]
@@ -220,8 +250,11 @@ class ExperimentRunner:
                 rd.mkdir(parents=True, exist_ok=True)
                 sl = rd / "run_status.jsonl"
 
-                print(f"\n[run] {display} / {policy}")
-                self.run_agent(agent, model, agent_dirs[policy], rd, parallel, args.timeout, sl)
+                print(f"\n[run] {display} / {policy} (runtime={runtime})")
+                self.run_agent(
+                    agent, model, agent_dirs[policy], rd, parallel,
+                    args.timeout, sl, runtime=runtime, sif=sif,
+                )
 
                 if not args.skip_eval:
                     print(f"\n[eval] {display} / {policy}")

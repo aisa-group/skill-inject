@@ -1,0 +1,9 @@
+executable = /bin/bash
+arguments = /lustre/home/dschmotz/skill-inject/apptainer/debug_env.sh
+output = /lustre/home/dschmotz/skill-inject/apptainer/debug_env_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/debug_env_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/debug_env_$(Cluster).log
+request_cpus = 1
+request_memory = 2048
++BypassLXCfs = "true"
+queue
