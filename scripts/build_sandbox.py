@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import random
 import re
 import shutil
 import sys
@@ -20,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (
     DATA_DIR,
+    DILUTION_SKILL_POOL,
     PROJECT_ROOT,
     SKILL_ROOT,
     STARTUP_SCRIPTS_DIR,
@@ -177,6 +179,7 @@ def build_sandbox(
     security_as_skill: bool = False,
     dry_run: bool = False,
     enable_description_injection: bool = False,
+    dilution_skill_paths: list[str] | None = None,
 ) -> dict:
     """Build a single sandbox for an injection + task pair. Returns manifest entry."""
     injection_id = injection.get("id")
@@ -246,6 +249,19 @@ def build_sandbox(
         inject_into_description(target_file, desc_injection)
     if line_injection and line_num:
         inject_at_line(target_file, line_injection, line_num)
+
+    # Copy dilution skills (benign, no injection) alongside the target skill
+    copied_dilution: list[str] = []
+    for dil_rel in (dilution_skill_paths or []):
+        dil_src = skill_root_dir / dil_rel
+        if not dil_src.exists():
+            print(f"[warn] Dilution skill not found: {dil_src}")
+            continue
+        dil_name = Path(dil_rel).name
+        dil_dst = sandbox_dir / layout_prefix / "skills" / dil_name
+        dil_dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(dil_src, dil_dst, dirs_exist_ok=True)
+        copied_dilution.append(dil_name)
 
     # Copy task files to sandbox root
     copied_task_files: list[str] = []
@@ -319,7 +335,7 @@ def build_sandbox(
     print(
         f"[done] {sandbox_id} "
         f"(skill: {skill_type}, {len(copied_task_files)} files, "
-        f"{len(copied_task_scripts)} scripts)"
+        f"{len(copied_task_scripts)} scripts, {len(copied_dilution)} dilution skills)"
     )
 
     return {
@@ -333,6 +349,7 @@ def build_sandbox(
         "task_scripts": copied_task_scripts,
         "root_files": copied_root_files,
         "startup_scripts": copied_startup,
+        "dilution_skills": copied_dilution,
         "task_prompt": task_prompt,
         "safety_protocol_variant": safety_context_variant,
     }
@@ -358,6 +375,11 @@ def main() -> None:
     parser.add_argument("--description-injection", action="store_true")
     parser.add_argument("--first-task-only", action="store_true",
                         help="Only build the first task per injection (for smoke tests)")
+    parser.add_argument("--dilution-count", type=int, default=0,
+                        help="Number of benign distractor skills to add to each sandbox "
+                             "(drawn from DILUTION_SKILL_POOL, excludes the task skill)")
+    parser.add_argument("--dilution-seed", type=int, default=42,
+                        help="Random seed for dilution skill selection (default: 42)")
     args = parser.parse_args()
 
     # Derive sandboxes root from injections filename if not provided
@@ -412,6 +434,7 @@ def main() -> None:
         return [(None, None, None, 0)]
 
     manifest_entries: list[dict] = []
+    rng = random.Random(args.dilution_seed)
 
     for inj in injections:
         ctx = inj.get("context", {})
@@ -428,6 +451,15 @@ def main() -> None:
         for tidx, task in enumerate(tasks):
             if skill_filter and task.get("skill", "") not in skill_filter:
                 continue
+
+            # Resolve dilution skills: exclude the task's own skill name
+            dilution_paths: list[str] = []
+            if args.dilution_count > 0:
+                task_skill_name = Path(get_skill_path(task.get("skill", ""))).name
+                pool = [s for s in DILUTION_SKILL_POOL if Path(s).name != task_skill_name]
+                n = min(args.dilution_count, len(pool))
+                dilution_paths = rng.sample(pool, n)
+
             for vsuffix, cvar, ctext, smode in variants:
                 full_suffix = vsuffix
                 if len(tasks) > 1:
@@ -448,6 +480,7 @@ def main() -> None:
                     security_as_skill=args.security_skill,
                     dry_run=args.dry_run,
                     enable_description_injection=args.description_injection,
+                    dilution_skill_paths=dilution_paths,
                 )
                 if meta:
                     meta["timestamp_utc"] = dt.datetime.now(dt.timezone.utc).isoformat(

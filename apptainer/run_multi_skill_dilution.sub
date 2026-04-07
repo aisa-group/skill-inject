@@ -1,0 +1,23 @@
+executable = /bin/bash
+arguments  = /lustre/home/dschmotz/skill-inject/apptainer/run_multi_skill_dilution.sh
+environment = "AGENT=$(AGENT) MODEL=$(MODEL) TIMEOUT=$(TIMEOUT) RATIOS=$(RATIOS) ANTHROPIC_API_KEY=$ENV(ANTHROPIC_API_KEY) OPENAI_API_KEY=$ENV(OPENAI_API_KEY) GEMINI_API_KEY=$ENV(GEMINI_API_KEY) GOOGLE_API_KEY=$ENV(GOOGLE_API_KEY) MISTRAL_API_KEY=$ENV(MISTRAL_API_KEY)"
+output = /lustre/home/dschmotz/skill-inject/apptainer/multi_skill_dilution_$(AGENT)_$(MODEL)_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/multi_skill_dilution_$(AGENT)_$(MODEL)_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/multi_skill_dilution_$(AGENT)_$(MODEL)_$(Cluster).log
+
+request_cpus   = 18
+request_memory = 16384
+request_disk   = 10G
+
++BypassLXCfs = "true"
+
+queue AGENT, MODEL, TIMEOUT, RATIOS from (
+    claude,  claude-opus-4-5-20251101, 500, 0 1 3 5 10
+    claude,  sonnet,                   500, 0 1 3 5 10
+    claude,  haiku,                    500, 0 1 3 5 10
+    codex,   gpt-5.2-codex,            500, 0 1 3 5 10
+    codex,   gpt-5.2,                  500, 0 1 3 5 10
+    codex,   gpt-5-mini,               500, 0 1 3 5 10
+    gemini,  gemini-3-pro-preview,     500, 0 1 3 5 10
+    gemini,  gemini-3-flash-preview,   500, 0 1 3 5 10
+)

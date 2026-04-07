@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
 import subprocess
 import sys
@@ -21,17 +22,20 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "data" / "instruction_unit_tests"))
 from config import (
     PROJECT_ROOT,
     DATA_DIR,
     AGENT_PARALLEL,
     DOCKER_IMAGE_NAME,
+    APPTAINER_DIR,
+    APPTAINER_IMAGE_NAME,
     FINAL_RESULTS_DIR,
 )
 
 BYLINE_INJECTIONS_FILE = DATA_DIR / "obvious_injections_byline.json"
+UNIT_TESTS_DIR = PROJECT_ROOT / "data" / "instruction_unit_tests" / "obvious"
 N_RUNS = 5
-JUDGE_MODEL = "gpt-5.1-codex-mini"
 
 # Hardcoded model list for this ablation — spans multiple agents.
 ABLATION_MODELS: list[dict[str, str]] = [
@@ -96,35 +100,81 @@ def build_for_run(
     return agent_dir, variant_file
 
 
+def _load_unit_test(injection_id: int):
+    """Load the unit test function for an obvious injection."""
+    test_file = UNIT_TESTS_DIR / f"test_obvious_{injection_id}.py"
+    if not test_file.exists():
+        return None
+    spec = importlib.util.spec_from_file_location(f"test_{injection_id}", test_file)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return getattr(mod, "test_attack", None)
+
+
+def evaluate_with_unit_tests(results_dir: Path) -> dict:
+    """Evaluate all sandboxes in results_dir using deterministic unit tests."""
+    results = []
+    for sd in sorted(results_dir.iterdir()):
+        if not sd.is_dir() or not sd.name.startswith("INST-"):
+            continue
+        iid = int(sd.name.split("_")[0].replace("INST-", ""))
+        test_fn = _load_unit_test(iid)
+        if test_fn is None:
+            results.append({
+                "sandbox_id": sd.name, "injection_id": iid,
+                "score": "technical", "method": "unit_test",
+                "evidence": f"No unit test for injection {iid}",
+            })
+            continue
+        try:
+            success, reason = test_fn(sd)
+        except Exception as e:
+            success, reason = False, f"ERROR: {e}"
+        results.append({
+            "sandbox_id": sd.name, "injection_id": iid,
+            "score": "attack_success" if success else "ignored",
+            "method": "unit_test", "evidence": reason,
+        })
+        sym = "V" if success else "o"
+        print(f"  {sym} INST-{iid}: {reason}")
+    return {"results": results}
+
+
 def run_and_evaluate(
     agent: str, model: str, run_idx: int,
     agent_dir: Path, variant_file: Path,
     results_dir: Path, parallel: int, timeout: int,
+    runtime: str = "docker", sif: str | None = None,
 ) -> dict:
     """Run agent + evaluate one run. Returns evaluation JSON."""
     status_log = results_dir.parent / f"status_{model}_{run_idx}.jsonl"
-    subprocess.run([
-        sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
-        "--agent", agent, "--model", model,
-        "--sandboxes-root", str(agent_dir),
-        "--results-dir", str(results_dir),
-        "--timeout", str(timeout),
-        "--parallel", str(parallel),
-        "--status-log", str(status_log),
-    ], check=True)
 
-    subprocess.run([
-        sys.executable, str(PROJECT_ROOT / "judges" / "obvious_judge.py"),
-        str(results_dir),
-        "--injections-file", str(variant_file),
-        "--model", JUDGE_MODEL,
-    ], check=True)
+    if runtime == "apptainer":
+        sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
+        cmd = [
+            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
+            "--agent", agent, "--model", model,
+            "--sandboxes-root", str(agent_dir),
+            "--results-dir", str(results_dir),
+            "--timeout", str(timeout),
+            "--parallel", str(parallel),
+            "--sif", sif_path,
+            "--status-log", str(status_log),
+        ]
+    else:
+        cmd = [
+            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
+            "--agent", agent, "--model", model,
+            "--sandboxes-root", str(agent_dir),
+            "--results-dir", str(results_dir),
+            "--timeout", str(timeout),
+            "--parallel", str(parallel),
+            "--status-log", str(status_log),
+        ]
 
-    eval_file = results_dir / f"evaluation_llmjudge_{JUDGE_MODEL}.json"
-    if eval_file.exists():
-        with eval_file.open() as f:
-            return json.load(f)
-    return {"results": []}
+    subprocess.run(cmd, check=True)
+
+    return evaluate_with_unit_tests(results_dir)
 
 
 def aggregate(all_runs: list[dict], n_runs: int) -> dict:
@@ -169,6 +219,9 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--smoke-test", action="store_true",
                         help="Run injection ID 1, 1 run, sequential")
+    parser.add_argument("--runtime", choices=["docker", "apptainer"],
+                        default="docker")
+    parser.add_argument("--sif", type=str, default=None)
     args = parser.parse_args()
 
     models = resolve_ablation_models(args.agent, args.model)
@@ -186,10 +239,11 @@ def main():
         n_runs = 1
         models = models[:1]  # Only test first matching model
 
-    # Ensure Docker image exists
-    r = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE_NAME], capture_output=True)
-    if r.returncode != 0:
-        subprocess.run(["bash", str(PROJECT_ROOT / "docker" / "build.sh")], check=True)
+    # Ensure container image exists
+    if args.runtime == "docker":
+        r = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE_NAME], capture_output=True)
+        if r.returncode != 0:
+            subprocess.run(["bash", str(PROJECT_ROOT / "docker" / "build.sh")], check=True)
 
     results_base = FINAL_RESULTS_DIR / "ablations" / "bo5_byline"
 
@@ -212,7 +266,8 @@ def main():
                                    injection_ids, args.description_injection)
             rd = run_dir / f"run-{ri}"
             rd.mkdir(parents=True, exist_ok=True)
-            data = run_and_evaluate(agent, model, ri, ad, vf, rd, parallel, args.timeout)
+            data = run_and_evaluate(agent, model, ri, ad, vf, rd, parallel, args.timeout,
+                                    runtime=args.runtime, sif=args.sif)
             all_runs.append({"run": ri, "data": data})
 
         per_inj = aggregate(all_runs, n_runs)

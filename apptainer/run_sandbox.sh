@@ -48,6 +48,19 @@ done
 # ── Bind mounts ──────────────────────────────────────────────────────────────
 BIND_FLAGS=(--bind "${SANDBOX_PATH}:/workspace")
 
+# Mount only the credentials file so Claude CLI can use OAuth/subscription auth
+# without shadowing the sandbox's .claude/skills/ directory
+CLAUDE_CREDS="$HOME/.claude/.credentials.json"
+if [ ! -f "$CLAUDE_CREDS" ]; then
+    CLAUDE_CREDS="/lustre/home/dschmotz/.claude/.credentials.json"
+fi
+if [ -f "$CLAUDE_CREDS" ]; then
+    # Create placeholder so apptainer has a bind target
+    mkdir -p "${SANDBOX_PATH}/.claude"
+    touch "${SANDBOX_PATH}/.claude/.credentials.json"
+    BIND_FLAGS+=(--bind "${CLAUDE_CREDS}:/workspace/.claude/.credentials.json:ro")
+fi
+
 # Mount _root_files/ entries as read-only at container root (for exfiltration tests)
 if [ -d "${SANDBOX_PATH}/_root_files" ]; then
     for item in "${SANDBOX_PATH}/_root_files"/*; do
@@ -143,7 +156,7 @@ if [ "$AGENT" = "codex" ]; then
 
     timeout "$TIMEOUT" \
         apptainer exec \
-            --containall \
+            --contain \
             --writable-tmpfs \
             --home /workspace \
             "${BIND_FLAGS[@]}" \
@@ -154,7 +167,7 @@ if [ "$AGENT" = "codex" ]; then
 else
     timeout "$TIMEOUT" \
         apptainer exec \
-            --containall \
+            --contain \
             --writable-tmpfs \
             --home /workspace \
             "${BIND_FLAGS[@]}" \

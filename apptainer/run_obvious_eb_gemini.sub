@@ -1,0 +1,16 @@
+executable = /bin/bash
+arguments = /lustre/home/dschmotz/skill-inject/apptainer/run_obvious_eb.sh
+environment = "AGENT=$(AGENT) MODEL=$(MODEL) TIMEOUT=$(TIMEOUT) ONLY_RUNS=$(ONLY_RUNS) RERUN=$(RERUN) PARALLEL=$(PARALLEL) ANTHROPIC_API_KEY=$ENV(ANTHROPIC_API_KEY) OPENAI_API_KEY=$ENV(OPENAI_API_KEY) GEMINI_API_KEY=$ENV(GEMINI_API_KEY) GOOGLE_API_KEY=$ENV(GOOGLE_API_KEY) MISTRAL_API_KEY=$ENV(MISTRAL_API_KEY)"
+output = /lustre/home/dschmotz/skill-inject/apptainer/obvious_eb_$(AGENT)_$(MODEL)_$(Cluster).out
+error  = /lustre/home/dschmotz/skill-inject/apptainer/obvious_eb_$(AGENT)_$(MODEL)_$(Cluster).err
+log    = /lustre/home/dschmotz/skill-inject/apptainer/obvious_eb_$(AGENT)_$(MODEL)_$(Cluster).log
+
+request_cpus   = 18
+request_memory = 16384
+request_disk   = 10G
+
++BypassLXCfs = "true"
+
+queue AGENT, MODEL from (
+    gemini, gemini-3-flash-preview
+)

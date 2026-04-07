@@ -32,6 +32,7 @@ AGENT_MODELS: dict[str, list[dict[str, str]]] = {
         {"model": "gpt-5-nano", "display_name": "Codex (5-nano)"},
         {"model": "gpt-5-codex", "display_name": "Codex (5-codex)"},
         {"model": "gpt-5-mini", "display_name": "Codex (5-mini)"},
+        {"model": "gpt-5.4-mini", "display_name": "Codex (5.4-mini)"},
     ],
     "claude": [
         {"model": "sonnet", "display_name": "Claude Code (Sonnet)"},
@@ -112,7 +113,27 @@ MODEL_CLI_MAP: dict[str, tuple[str, str]] = {
     "gpt-5-nano": ("codex", "gpt-5-nano"),
     "gpt-5-codex": ("codex", "gpt-5-codex"),
     "gpt-5-mini": ("codex", "gpt-5-mini"),
+    "gpt-5.4-mini": ("codex", "gpt-5.4-mini"),
 }
+
+
+# Pool of benign skills used as non-injected distractors in multi-skill
+# dilution experiments.  None of these appear as injection targets in
+# obvious_injections.json or contextual_injections.json.
+DILUTION_SKILL_POOL: list[str] = [
+    "code-review",
+    "seo-review",
+    "sql-optimization-patterns",
+    "write-unit-tests",
+    "bats-testing-patterns",
+    "applying-brand-guidelines",
+    "analyzing-financial-statements",
+    "risk-metrics-calculation",
+    "shellcheck-configuration",
+    "webapp-testing",
+    "mcp",
+    "internal-comms",
+]
 
 
 def get_skill_path(skill_type: str) -> str:
