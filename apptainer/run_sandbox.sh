@@ -24,9 +24,20 @@ MODEL="${6:-}"
 
 SANDBOX_PATH="$(cd "$SANDBOX_PATH" && pwd)"  # resolve to absolute path
 
-# ── Load API keys from .env ──────────────────────────────────────────────────
-ENV_FILE="$SCRIPT_DIR/.env"
+# ── Load API keys ─────────────────────────────────────────────────────────────
+# Shell environment is loaded first (lower priority); .env file is loaded second
+# and overwrites any matching keys, so .env always takes precedence.
 ENV_FLAGS=()
+
+# 1. Pass through any API keys already in the shell environment
+for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOKEN MISTRAL_API_KEY; do
+    if [ -n "${!key}" ]; then
+        ENV_FLAGS+=(--env "${key}=${!key}")
+    fi
+done
+
+# 2. Load from .env (overwrites shell env for any key present in the file)
+ENV_FILE="$SCRIPT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     while IFS='=' read -r key value; do
         # Skip comments and blank lines
@@ -37,13 +48,6 @@ if [ -f "$ENV_FILE" ]; then
         [ -n "$value" ] && ENV_FLAGS+=(--env "${key}=${value}")
     done < "$ENV_FILE"
 fi
-
-# Also pass through any API keys already in the environment
-for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOKEN MISTRAL_API_KEY; do
-    if [ -n "${!key}" ]; then
-        ENV_FLAGS+=(--env "${key}=${!key}")
-    fi
-done
 
 # ── Bind mounts ──────────────────────────────────────────────────────────────
 BIND_FLAGS=(--bind "${SANDBOX_PATH}:/workspace")
@@ -102,6 +106,43 @@ ENV_FLAGS+=(--env "BASH_ENV=/workspace/.bash_command_logger.sh")
 SECURITY_FILE="${SANDBOX_PATH}/SECURITY_PROTOCOL.md"
 SECURITY_ARGS=()
 SECURITY_ENV_FLAGS=()
+
+# ── Extra system prompt (no wrapper) ─────────────────────────────────────────
+# _EXTRA_SYSTEM_PROMPT.md is passed directly via --append-system-prompt with no
+# wrapping, so experiments can inject plain instructions without the
+# "SYSTEM ADMINISTRATOR SECURITY PROTOCOL" framing added by SECURITY_PROTOCOL.md.
+EXTRA_PROMPT_FILE="${SANDBOX_PATH}/_EXTRA_SYSTEM_PROMPT.md"
+EXTRA_PROMPT_ARGS=()
+EXTRA_PROMPT_ENV_FLAGS=()
+
+if [ -f "$EXTRA_PROMPT_FILE" ] && [ -s "$EXTRA_PROMPT_FILE" ]; then
+    EXTRA_TEXT="$(cat "$EXTRA_PROMPT_FILE")"
+    EXTRA_TEXT="$(echo "$EXTRA_TEXT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ -n "$EXTRA_TEXT" ]; then
+        case "$AGENT" in
+            claude)
+                EXTRA_PROMPT_ARGS=(--append-system-prompt "$EXTRA_TEXT")
+                ;;
+            codex)
+                # Prepend to AGENTS.md (written below by security protocol block if present,
+                # otherwise create fresh).  We write here so security protocol appends after.
+                printf '%s\n\n' "$EXTRA_TEXT" >> "${SANDBOX_PATH}/AGENTS.md"
+                ;;
+            gemini)
+                # Gemini reads one system prompt file; prepend extra text before any
+                # security protocol text.
+                SYS_FILE_EXTRA="${SANDBOX_PATH}/_SYSTEM_PROMPT.md"
+                printf '%s\n\n' "$EXTRA_TEXT" > "$SYS_FILE_EXTRA"
+                EXTRA_PROMPT_ENV_FLAGS=(--env "GEMINI_SYSTEM_MD=/workspace/_SYSTEM_PROMPT.md")
+                ;;
+            vibe)
+                PROMPT="${EXTRA_TEXT}
+
+${PROMPT}"
+                ;;
+        esac
+    fi
+fi
 
 if [ -f "$SECURITY_FILE" ] && [ -s "$SECURITY_FILE" ]; then
     SEC_TEXT="$(cat "$SECURITY_FILE")"
@@ -162,6 +203,7 @@ if [ "$AGENT" = "codex" ]; then
             "${BIND_FLAGS[@]}" \
             "${ENV_FLAGS[@]}" \
             "${SECURITY_ENV_FLAGS[@]}" \
+            "${EXTRA_PROMPT_ENV_FLAGS[@]}" \
             "$SIF_IMAGE" \
             bash -c "$INNER_CMD"
 else
@@ -173,6 +215,7 @@ else
             "${BIND_FLAGS[@]}" \
             "${ENV_FLAGS[@]}" \
             "${SECURITY_ENV_FLAGS[@]}" \
+            "${EXTRA_PROMPT_ENV_FLAGS[@]}" \
             "$SIF_IMAGE" \
-            "$AGENT" "${AGENT_FLAGS[@]}" "${SECURITY_ARGS[@]}" "$PROMPT"
+            "$AGENT" "${AGENT_FLAGS[@]}" "${SECURITY_ARGS[@]}" "${EXTRA_PROMPT_ARGS[@]}" "$PROMPT"
 fi
