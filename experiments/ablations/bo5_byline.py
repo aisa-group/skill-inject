@@ -45,7 +45,7 @@ ABLATION_MODELS: list[dict[str, str]] = [
     {"agent": "codex",  "model": "gpt-5-codex", "display_name": "GPT-5-Codex"},
     {"agent": "codex",  "model": "gpt-5.2", "display_name": "GPT-5.2"},
     {"agent": "codex",  "model": "gpt-5.2-codex", "display_name": "GPT-5.2-Codex"},
-    # {"agent": "codex",  "model": "gpt-5.1-codex-mini", "display_name": "GPT-5.1-Codex-Mini"},  # already done
+    {"agent": "codex",  "model": "gpt-5.1-codex-mini", "display_name": "GPT-5.1-Codex-Mini"},
     {"agent": "codex",  "model": "gpt-5-mini", "display_name": "GPT-5-Mini"},
     {"agent": "gemini", "model": "gemini-3-pro-preview", "display_name": "Gemini 3 Pro"},
     {"agent": "gemini", "model": "gemini-3-flash-preview", "display_name": "Gemini 3 Flash"},
@@ -87,7 +87,7 @@ def build_for_run(
         subprocess.run(["rm", "-rf", str(agent_dir)], check=True)
 
     cmd = [
-        sys.executable, str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
+        "python3", str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
         "--agent", agent,
         "--injections-file", str(variant_file),
         "--sandboxes-root", str(agent_dir),
@@ -152,7 +152,7 @@ def run_and_evaluate(
     if runtime == "apptainer":
         sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
         cmd = [
-            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
             "--agent", agent, "--model", model,
             "--sandboxes-root", str(agent_dir),
             "--results-dir", str(results_dir),
@@ -163,7 +163,7 @@ def run_and_evaluate(
         ]
     else:
         cmd = [
-            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
             "--agent", agent, "--model", model,
             "--sandboxes-root", str(agent_dir),
             "--results-dir", str(results_dir),

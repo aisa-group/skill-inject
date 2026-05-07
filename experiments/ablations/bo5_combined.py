@@ -126,7 +126,7 @@ def build_for_run(
         subprocess.run(["rm", "-rf", str(agent_dir)], check=True)
 
     cmd = [
-        sys.executable, str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
+        "python3", str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
         "--agent", agent,
         "--injections-file", str(variant_file),
         "--sandboxes-root", str(agent_dir),
@@ -188,7 +188,7 @@ def run_and_evaluate(
     if runtime == "apptainer":
         sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
         cmd = [
-            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
             "--agent", agent, "--model", model,
             "--sandboxes-root", str(agent_dir),
             "--results-dir", str(results_dir),
@@ -199,7 +199,7 @@ def run_and_evaluate(
         ]
     else:
         cmd = [
-            sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
             "--agent", agent, "--model", model,
             "--sandboxes-root", str(agent_dir),
             "--results-dir", str(results_dir),

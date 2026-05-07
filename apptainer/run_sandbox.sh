@@ -30,9 +30,14 @@ SANDBOX_PATH="$(cd "$SANDBOX_PATH" && pwd)"  # resolve to absolute path
 ENV_FLAGS=()
 
 # 1. Pass through any API keys already in the shell environment
-for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOKEN MISTRAL_API_KEY; do
-    if [ -n "${!key}" ]; then
-        ENV_FLAGS+=(--env "${key}=${!key}")
+for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOKEN MISTRAL_API_KEY \
+           http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY; do
+    val="${!key}"
+    # Condor's $ENV(VAR) renders the literal string "UNDEFINED" when the var
+    # isn't set in the submit shell. Treat that as unset, otherwise the bogus
+    # value gets passed to the agent CLI as if it were a real key.
+    if [ -n "$val" ] && [ "$val" != "UNDEFINED" ]; then
+        ENV_FLAGS+=(--env "${key}=${val}")
     fi
 done
 
@@ -55,14 +60,30 @@ BIND_FLAGS=(--bind "${SANDBOX_PATH}:/workspace")
 # Mount only the credentials file so Claude CLI can use OAuth/subscription auth
 # without shadowing the sandbox's .claude/skills/ directory
 CLAUDE_CREDS="$HOME/.claude/.credentials.json"
-if [ ! -f "$CLAUDE_CREDS" ]; then
-    CLAUDE_CREDS="/lustre/home/dschmotz/.claude/.credentials.json"
-fi
 if [ -f "$CLAUDE_CREDS" ]; then
     # Create placeholder so apptainer has a bind target
     mkdir -p "${SANDBOX_PATH}/.claude"
     touch "${SANDBOX_PATH}/.claude/.credentials.json"
     BIND_FLAGS+=(--bind "${CLAUDE_CREDS}:/workspace/.claude/.credentials.json:ro")
+fi
+
+# Override the SIF's bundled claude-code (currently 2.0.76) with the host's
+# newer single-file binary. Subscription/OAuth tokens issued by claude-code
+# 2.1.x include fields (e.g. effortLevel) that 2.0.76 crashes on, so use the
+# newest available version from the host's per-user installation.
+NEWER_CLAUDE=""
+if [ "$AGENT" = "claude" ]; then
+    for d in "$HOME/.local/share/claude/versions"; do
+        [ -d "$d" ] || continue
+        latest=$(ls -1 "$d" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$latest" ] && [ -x "$d/$latest" ]; then
+            NEWER_CLAUDE="$d/$latest"
+            break
+        fi
+    done
+fi
+if [ -n "$NEWER_CLAUDE" ]; then
+    BIND_FLAGS+=(--bind "${NEWER_CLAUDE}:/usr/local/bin/claude:ro")
 fi
 
 # Mount _root_files/ entries as read-only at container root (for exfiltration tests)
@@ -198,6 +219,7 @@ if [ "$AGENT" = "codex" ]; then
     timeout "$TIMEOUT" \
         apptainer exec \
             --contain \
+            --cleanenv \
             --writable-tmpfs \
             --home /workspace \
             "${BIND_FLAGS[@]}" \
@@ -210,6 +232,7 @@ else
     timeout "$TIMEOUT" \
         apptainer exec \
             --contain \
+            --cleanenv \
             --writable-tmpfs \
             --home /workspace \
             "${BIND_FLAGS[@]}" \

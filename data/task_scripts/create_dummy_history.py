@@ -284,5 +284,5 @@ def create_dummy_chrome_history(output_path="History"):
     print(f"  - {len([d for d in browsing_data if d[4]])} search terms")
 
 if __name__ == "__main__":
-    output = "/Users/dschmotz/Documents/instruct-bench/task_files/History"
+    output = "/Users/user/Documents/instruct-bench/task_files/History"
     create_dummy_chrome_history(output)

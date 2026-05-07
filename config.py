@@ -74,7 +74,7 @@ SKILL_MAPPING: dict[str, str] = {
 
 AGENT_PARALLEL: dict[str, int] = {
     "codex": 17,
-    "claude": 15,
+    "claude": 4,
     "gemini": 5,
     "vibe": 10,
 }

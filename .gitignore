@@ -20,6 +20,15 @@ apptainer/*_*.log
 apptainer/*_*.out
 apptainer/build_login.log
 
+# Cluster-specific submission and helper scripts (contain hardcoded user paths).
+# run_sandbox.sh is the generic per-sandbox runner and stays tracked.
+apptainer/*.sub
+apptainer/run_*.sh
+!apptainer/run_sandbox.sh
+apptainer/build_cluster.sh
+apptainer/debug_*.sh
+apptainer/smoke_test.sh
+
 # Environment / secrets
 docker/.env
 apptainer/.env
