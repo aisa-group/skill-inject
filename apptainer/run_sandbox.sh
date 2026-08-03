@@ -103,6 +103,7 @@ case "$AGENT" in
         ;;
     codex)
         AGENT_FLAGS=(exec --json --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check)
+        [ -n "$MODEL" ] && AGENT_FLAGS+=(--model "$MODEL")
         ;;
     gemini)
         AGENT_FLAGS=(--yolo)
@@ -204,6 +205,17 @@ ${PROMPT}"
                 ;;
         esac
     fi
+fi
+
+# ── Permission policy hook (optional) ────────────────────────────────────────
+# The permission-defense ablation drops a .perm_runtime.sh into the sandbox.
+# It runs with BIND_FLAGS / ENV_FLAGS / AGENT_FLAGS / CMD_LOGGER in scope and
+# appends the restrictions for the active condition.  Absent file => no-op, so
+# every other experiment is unaffected.
+PERM_RUNTIME="${SANDBOX_PATH}/.perm_runtime.sh"
+if [ -f "$PERM_RUNTIME" ]; then
+    # shellcheck source=/dev/null
+    source "$PERM_RUNTIME"
 fi
 
 # ── Run ──────────────────────────────────────────────────────────────────────

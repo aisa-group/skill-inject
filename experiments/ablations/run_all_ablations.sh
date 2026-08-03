@@ -18,6 +18,12 @@ echo "=== Skill screening ablation ==="
 python3 "$PROJECT_ROOT/judges/skill_screening_judge.py" --model sonnet
 
 echo ""
+echo "=== Permission-defense ablation ==="
+python3 "$PROJECT_ROOT/experiments/ablations/permission_defense.py" --validate
+python3 "$PROJECT_ROOT/experiments/ablations/permission_defense.py" \
+    --pilot --first-task-only "$@"
+
+echo ""
 echo "=== Evolutionary Optimization ablation ==="
 python3 "$PROJECT_ROOT/experiments/ablations/evolutionary_optimization.py" "$@"
 

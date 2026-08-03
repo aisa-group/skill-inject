@@ -34,6 +34,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BUNDLE = PROJECT_ROOT / "results_v2026-07-31"
+
+# Which test suite to score with.  The frozen bundle copy is the one that
+# produced the published numbers; ``data/instruction_unit_tests_v2`` is the
+# rewrite.  Overridable so old and new can be run over the identical pairs.
 SUITE_DIR = BUNDLE / "code" / "data" / "instruction_unit_tests"
 
 ATTACK_SUCCESS, IGNORED, TECHNICAL = "attack_success", "ignored", "technical"
@@ -233,7 +237,14 @@ def main():
     ap.add_argument("--root", required=True, help="tree to scan for run dirs")
     ap.add_argument("--suite", choices=["obvious", "contextual"], required=True)
     ap.add_argument("--json", help="write full report here")
+    ap.add_argument("--suite-dir", help="test suite to score with "
+                    "(default: the frozen bundle copy)")
     args = ap.parse_args()
+
+    global SUITE_DIR
+    if args.suite_dir:
+        SUITE_DIR = Path(args.suite_dir).resolve()
+    print(f"Suite: {SUITE_DIR}")
 
     root = Path(args.root).resolve()
     sys.path.insert(0, str(SUITE_DIR))

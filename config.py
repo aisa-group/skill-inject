@@ -36,6 +36,11 @@ AGENT_MODELS: dict[str, list[dict[str, str]]] = {
     ],
     "claude": [
         {"model": "sonnet", "display_name": "Claude Code (Sonnet)"},
+        # Pinned Sonnet releases.  The `sonnet` alias tracks the current model,
+        # which makes it useless for reproducing a published number: the paper's
+        # Sonnet rows were measured on 4.6.
+        {"model": "claude-sonnet-4-6", "display_name": "Claude Code (Sonnet 4.6)"},
+        {"model": "claude-sonnet-4-5", "display_name": "Claude Code (Sonnet 4.5)"},
         {"model": "claude-opus-4-5-20251101", "display_name": "Claude Code (Opus)"},
         {"model": "haiku", "display_name": "Claude Code (Haiku)"},
     ],
