@@ -140,6 +140,80 @@ class BaseJudge:
         return model.startswith("gpt-") or model.startswith("o1-")
 
     @staticmethod
+    def _openai_key() -> str:
+        """OPENAI_API_KEY from the environment, falling back to the repo .env."""
+        import os
+        key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if key:
+            return key
+        env_file = Path(__file__).resolve().parent.parent / ".env"
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
+                name, _, value = line.partition("=")
+                if name.strip() == "OPENAI_API_KEY":
+                    return value.strip().strip('"').strip("'")
+        return ""
+
+    @staticmethod
+    def run_api_judge(prompt: str, model: str, timeout: int = 180) -> str:
+        """Judge a *self-contained* prompt through the OpenAI HTTP API.
+
+        For judges whose prompt already embeds every piece of evidence (the
+        utility judge reads ``agent_stdout.txt`` into the prompt), this is
+        equivalent to the CLI path and does not need the ``codex`` binary,
+        which is absent on the cluster and whose codex-tier models 404 against
+        a plain API key.
+
+        Do **not** use it for the investigating judges: they rely on the CLI
+        being agentic and reading the sandbox themselves, which an API call
+        with no tools cannot do.
+
+        Raises on transport or API error rather than returning empty, so a
+        broken judge cannot be silently recorded as a ``technical`` verdict.
+        """
+        import json as _json
+        import urllib.error
+        import urllib.request
+
+        key = BaseJudge._openai_key()
+        if not key:
+            raise RuntimeError("OPENAI_API_KEY is not set (env or .env)")
+
+        payload = {
+            "model": model,
+            "input": prompt,
+            # A one-word verdict needs no deliberation budget; low effort keeps
+            # the pass cheap enough to re-run whenever the graders change.
+            "reasoning": {"effort": "low"},
+            "max_output_tokens": 3000,
+        }
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=_json.dumps(payload).encode(),
+            headers={"Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = _json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(
+                f"{model}: HTTP {exc.code} {exc.read()[:300].decode(errors='ignore')}"
+            ) from exc
+
+        if body.get("error"):
+            raise RuntimeError(f"{model}: {body['error'].get('message')}")
+        text = "".join(
+            chunk.get("text", "")
+            for item in body.get("output", [])
+            for chunk in (item.get("content") or [])
+            if chunk.get("type") == "output_text"
+        )
+        if not text.strip():
+            raise RuntimeError(f"{model}: empty response (status={body.get('status')})")
+        return text
+
+    @staticmethod
     def run_claude_judge(
         sandbox_dir: Path, prompt: str, model: str = "sonnet"
     ) -> str:

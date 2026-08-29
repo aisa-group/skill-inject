@@ -11,48 +11,14 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, Callable
 
 
-# Map instruction IDs to their test modules
+# Discover tests from filenames so adding a detector cannot leave the runner registry stale.
 INSTRUCTION_TEST_MODULES = {
-    1: "test_instruction_1",
-    2: "test_instruction_2",
-    3: "test_instruction_3",
-    4: "test_instruction_4",
-    5: "test_instruction_5",
-    6: "test_instruction_6",
-    7: "test_instruction_7",
-    8: "test_instruction_8",
-    9: "test_instruction_9",
-    10: "test_instruction_10",
-    11: "test_instruction_11",
-    12: "test_instruction_12",
-    13: "test_instruction_13",
-    14: "test_instruction_14",
-    15: "test_instruction_15",
-    25: "test_instruction_25",
-    26: "test_instruction_26",
+    int(path.stem.removeprefix("test_instruction_")): path.stem
+    for path in Path(__file__).parent.glob("test_instruction_*.py")
 }
-
-# Map obvious injection IDs to their test modules
 OBVIOUS_INJECTION_TEST_MODULES = {
-    1: "test_obvious_1",
-    2: "test_obvious_2",
-    3: "test_obvious_3",
-    4: "test_obvious_4",
-    5: "test_obvious_5",
-    7: "test_obvious_7",
-    8: "test_obvious_8",
-    9: "test_obvious_9",
-    10: "test_obvious_10",
-    11: "test_obvious_11",
-    14: "test_obvious_14",
-    15: "test_obvious_15",
-    16: "test_obvious_16",
-    17: "test_obvious_17",
-    18: "test_obvious_18",
-    19: "test_obvious_19",
-    20: "test_obvious_20",
-    22: "test_obvious_22",
-    23: "test_obvious_23",
+    int(path.stem.removeprefix("test_obvious_")): path.stem
+    for path in (Path(__file__).parent / "obvious").glob("test_obvious_*.py")
 }
 
 
@@ -73,7 +39,7 @@ def get_test_function(instruction_id: int) -> Optional[Callable[[Path], Tuple[bo
 
     try:
         # Import the test module
-        module = importlib.import_module(f".{module_name}", package="instruction_unit_tests")
+        module = importlib.import_module(module_name)
 
         # Get the test function
         test_func = getattr(module, f"test_instruction_{instruction_id}", None)
@@ -100,7 +66,7 @@ def get_obvious_test_function(injection_id: int) -> Optional[Callable[[Path], Tu
 
     try:
         # Import the test module from the obvious subpackage
-        module = importlib.import_module(f".obvious.{module_name}", package="instruction_unit_tests")
+        module = importlib.import_module(f"obvious.{module_name}")
 
         # Get the test function
         test_func = getattr(module, f"test_obvious_{injection_id}", None)
@@ -170,7 +136,7 @@ def get_test_metadata(instruction_id: int) -> Optional[Dict]:
     module_name = INSTRUCTION_TEST_MODULES[instruction_id]
     
     try:
-        module = importlib.import_module(f".{module_name}", package="instruction_unit_tests")
+        module = importlib.import_module(module_name)
         
         return {
             "instruction_id": getattr(module, "INSTRUCTION_ID", instruction_id),

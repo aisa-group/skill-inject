@@ -117,6 +117,13 @@ class TestModelCliMap:
             assert isinstance(val, tuple)
             assert len(val) == 2
 
+    def test_covers_every_configured_model_with_owning_cli(self):
+        for agent, models in AGENT_MODELS.items():
+            for entry in models:
+                model = entry["model"]
+                assert model in MODEL_CLI_MAP, f"Missing CLI mapping for {agent}/{model}"
+                assert MODEL_CLI_MAP[model][0] == agent
+
 
 class TestAgentParallel:
     def test_known_agents(self):
@@ -141,3 +148,20 @@ class TestCrossConsistency:
     def test_no_orphan_agent_parallel(self):
         for agent in AGENT_PARALLEL:
             assert agent in AGENT_MODELS, f"Agent {agent} in AGENT_PARALLEL but not AGENT_MODELS"
+
+
+class TestUtilityJudgeRouting:
+    def test_gpt_judge_uses_openai_api(self, tmp_path, monkeypatch):
+        from judges._base import BaseJudge
+        from judges.utility_baseline_judge import evaluate_task_completion
+
+        (tmp_path / "agent_stdout.txt").write_text("completed " * 20)
+        calls = []
+        monkeypatch.setattr(BaseJudge, "run_api_judge", lambda prompt, model: calls.append(model) or "SUCCESS")
+        monkeypatch.setattr(
+            BaseJudge, "run_claude_judge",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Claude CLI used for GPT model")),
+        )
+
+        assert evaluate_task_completion(tmp_path, "Create the requested artifact", "gpt-5.1") == "success"
+        assert calls == ["gpt-5.1"]

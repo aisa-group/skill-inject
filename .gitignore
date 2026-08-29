@@ -46,6 +46,9 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.venv/
+.llm_cache/
+uv.lock
 *.egg-info/
 
 # OS

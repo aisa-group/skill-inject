@@ -302,6 +302,9 @@ def _run_in_docker(
         agent_cmd = ["gemini", "--yolo", "-m", model_name, "-o", "text", prompt]
         # TODO: for security protocol, would need to write system prompt file inside container
 
+    elif cli == "vibe":
+        agent_cmd = ["vibe", "--yes", "--model", model_name, prompt]
+
     else:
         agent_cmd = [
             "claude", "--model", model_name, "--dangerously-skip-permissions",
@@ -395,6 +398,8 @@ def run_recommendation_judge(
         _ensure_codex_login()
         cmd = ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox",
                "--skip-git-repo-check", "-m", model_name, prompt]
+    elif cli == "vibe":
+        cmd = ["vibe", "--yes", "--model", model_name, prompt]
     else:
         cmd = ["claude", "--model", model, "--dangerously-skip-permissions",
                "--output-format", "text", "--max-turns", "1", "--print", prompt]

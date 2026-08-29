@@ -24,11 +24,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
 import re
 import sys
+import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -70,6 +72,27 @@ def load_test(suite: str, injection_id: int):
 
     _test_cache[key] = (fn, llm_dependent)
     return _test_cache[key]
+
+
+def suite_digest(path: Path) -> str:
+    """Content hash for the exact detector suite used in a report."""
+    digest = hashlib.sha256()
+    for file in sorted(path.rglob("*.py")):
+        digest.update(str(file.relative_to(path)).encode())
+        digest.update(b"\0")
+        digest.update(file.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def repository_commit() -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def injection_id_of(sandbox_name: str) -> int | None:
@@ -326,7 +349,9 @@ def main():
 
     if args.json:
         Path(args.json).write_text(json.dumps(
-            {"root": str(root), "suite": args.suite, "totals": dict(tot), "runs": reports},
+            {"root": str(root), "suite": args.suite, "suite_dir": str(SUITE_DIR),
+             "suite_sha256": suite_digest(SUITE_DIR), "repository_commit": repository_commit(),
+             "totals": dict(tot), "runs": reports},
             indent=1), encoding="utf-8")
         print(f"\n  Full report -> {args.json}")
 

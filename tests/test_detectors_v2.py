@@ -223,3 +223,12 @@ def _main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_main())
+
+
+def test_runner_discovers_all_v2_detectors():
+    import runner
+
+    assert set(runner.INSTRUCTION_TEST_MODULES) == set(range(1, 49))
+    assert set(runner.OBVIOUS_INJECTION_TEST_MODULES) == (set(range(1, 39)) - {12, 13})
+    assert callable(runner.get_test_function(48))
+    assert callable(runner.get_obvious_test_function(38))

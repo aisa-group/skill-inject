@@ -2,7 +2,7 @@
 # Run a single sandbox inside an Apptainer container.
 #
 # Usage:
-#   bash apptainer/run_sandbox.sh <sif_image> <sandbox_path> <agent> "<prompt>" [timeout_secs]
+#   bash apptainer/run_sandbox.sh <sif_image> <sandbox_path> <agent> "<prompt>" [timeout_secs] [model] [auth_mode]
 #
 # Examples:
 #   bash apptainer/run_sandbox.sh apptainer/instruct-bench-agent.sif \
@@ -21,6 +21,12 @@ AGENT="${3:?Missing agent (claude|codex|gemini|vibe)}"
 PROMPT="${4:?Missing prompt}"
 TIMEOUT="${5:-600}"
 MODEL="${6:-}"
+AUTH_MODE="${7:-auto}"
+case "$AUTH_MODE" in auto|subscription|api-key) ;; *) echo "Unknown auth mode: $AUTH_MODE" >&2; exit 2 ;; esac
+if [ "$AUTH_MODE" = "subscription" ] && [ "$AGENT" != "claude" ] && [ "$AGENT" != "codex" ]; then
+    echo "Subscription authentication is unsupported for agent: $AGENT" >&2
+    exit 2
+fi
 
 SANDBOX_PATH="$(cd "$SANDBOX_PATH" && pwd)"  # resolve to absolute path
 
@@ -36,6 +42,9 @@ for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOK
     # Condor's $ENV(VAR) renders the literal string "UNDEFINED" when the var
     # isn't set in the submit shell. Treat that as unset, otherwise the bogus
     # value gets passed to the agent CLI as if it were a real key.
+    if [ "$AUTH_MODE" = "subscription" ] && { [ "$AGENT" = "claude" ] && [ "$key" = "ANTHROPIC_API_KEY" ] || [ "$AGENT" = "codex" ] && [ "$key" = "OPENAI_API_KEY" ]; }; then
+        continue
+    fi
     if [ -n "$val" ] && [ "$val" != "UNDEFINED" ]; then
         ENV_FLAGS+=(--env "${key}=${val}")
     fi
@@ -50,6 +59,9 @@ if [ -f "$ENV_FILE" ]; then
         [[ -z "$key" ]] && continue
         key="$(echo "$key" | xargs)"
         value="$(echo "$value" | xargs)"
+        if [ "$AUTH_MODE" = "subscription" ] && { [ "$AGENT" = "claude" ] && [ "$key" = "ANTHROPIC_API_KEY" ] || [ "$AGENT" = "codex" ] && [ "$key" = "OPENAI_API_KEY" ]; }; then
+            continue
+        fi
         [ -n "$value" ] && ENV_FLAGS+=(--env "${key}=${value}")
     done < "$ENV_FILE"
 fi
@@ -57,14 +69,36 @@ fi
 # ── Bind mounts ──────────────────────────────────────────────────────────────
 BIND_FLAGS=(--bind "${SANDBOX_PATH}:/workspace")
 
-# Mount only the credentials file so Claude CLI can use OAuth/subscription auth
-# without shadowing the sandbox's .claude/skills/ directory
-CLAUDE_CREDS="$HOME/.claude/.credentials.json"
-if [ -f "$CLAUDE_CREDS" ]; then
-    # Create placeholder so apptainer has a bind target
-    mkdir -p "${SANDBOX_PATH}/.claude"
-    touch "${SANDBOX_PATH}/.claude/.credentials.json"
-    BIND_FLAGS+=(--bind "${CLAUDE_CREDS}:/workspace/.claude/.credentials.json:ro")
+# Mount only OAuth credential files. Subscription mode requires them.
+if [ "$AUTH_MODE" != "api-key" ] && [ "$AGENT" = "claude" ]; then
+    CLAUDE_CREDS="$HOME/.claude/.credentials.json"
+    if [ -f "$CLAUDE_CREDS" ]; then
+        if [ "$AUTH_MODE" = "subscription" ] && ! grep -q '"claudeAiOauth"' "$CLAUDE_CREDS"; then
+            echo "$CLAUDE_CREDS does not contain Claude subscription OAuth credentials." >&2
+            exit 2
+        fi
+        mkdir -p "${SANDBOX_PATH}/.claude"
+        touch "${SANDBOX_PATH}/.claude/.credentials.json"
+        BIND_FLAGS+=(--bind "${CLAUDE_CREDS}:/workspace/.claude/.credentials.json:ro")
+    elif [ "$AUTH_MODE" = "subscription" ]; then
+        echo "Subscription credentials not found: $CLAUDE_CREDS. Log in with the claude CLI first." >&2
+        exit 2
+    fi
+fi
+if [ "$AUTH_MODE" != "api-key" ] && [ "$AGENT" = "codex" ]; then
+    CODEX_CREDS="$HOME/.codex/auth.json"
+    if [ -f "$CODEX_CREDS" ]; then
+        if [ "$AUTH_MODE" = "subscription" ] && ! grep -Eq '"auth_mode"[[:space:]]*:[[:space:]]*"chatgpt"' "$CODEX_CREDS"; then
+            echo "$CODEX_CREDS does not contain ChatGPT subscription OAuth credentials." >&2
+            exit 2
+        fi
+        mkdir -p "${SANDBOX_PATH}/.codex"
+        touch "${SANDBOX_PATH}/.codex/auth.json"
+        BIND_FLAGS+=(--bind "${CODEX_CREDS}:/workspace/.codex/auth.json:ro")
+    elif [ "$AUTH_MODE" = "subscription" ]; then
+        echo "Subscription credentials not found: $CODEX_CREDS. Log in with the codex CLI first." >&2
+        exit 2
+    fi
 fi
 
 # Override the SIF's bundled claude-code (currently 2.0.76) with the host's
@@ -84,6 +118,22 @@ if [ "$AGENT" = "claude" ]; then
 fi
 if [ -n "$NEWER_CLAUDE" ]; then
     BIND_FLAGS+=(--bind "${NEWER_CLAUDE}:/usr/local/bin/claude:ro")
+fi
+
+# ChatGPT subscription models may require a newer Codex CLI than the SIF ships.
+# Prefer the host.s current single-file binary when available.
+NEWER_CODEX=""
+if [ "$AGENT" = "codex" ]; then
+    CODEX_VERSION_ROOT="$HOME/.local/share/codex/versions"
+    if [ -d "$CODEX_VERSION_ROOT" ]; then
+        latest=$(ls -1 "$CODEX_VERSION_ROOT" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$latest" ] && [ -x "$CODEX_VERSION_ROOT/$latest/bin/codex" ]; then
+            NEWER_CODEX="$CODEX_VERSION_ROOT/$latest/bin/codex"
+        fi
+    fi
+fi
+if [ -n "$NEWER_CODEX" ]; then
+    BIND_FLAGS+=(--bind "${NEWER_CODEX}:/usr/local/bin/codex:ro")
 fi
 
 # Mount _root_files/ entries as read-only at container root (for exfiltration tests)
@@ -224,7 +274,10 @@ fi
 if [ "$AGENT" = "codex" ]; then
     # Build the full command as a shell snippet so login + exec happen in one
     # Apptainer invocation (writable-tmpfs is ephemeral).
-    INNER_CMD="echo \"\$OPENAI_API_KEY\" | codex login --with-api-key >/dev/null 2>&1; "
+    INNER_CMD=""
+    if [ "$AUTH_MODE" != "subscription" ] && [ -n "$OPENAI_API_KEY" ]; then
+        INNER_CMD="echo \"\$OPENAI_API_KEY\" | codex login --with-api-key >/dev/null 2>&1; "
+    fi
     INNER_CMD+="cd /workspace && git init -q . 2>/dev/null; "
     INNER_CMD+="codex ${AGENT_FLAGS[*]} ${SECURITY_ARGS[*]} $(printf '%q' "$PROMPT")"
 

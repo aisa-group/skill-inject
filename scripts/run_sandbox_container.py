@@ -69,6 +69,50 @@ class ContainerConfig:
     memory_limit: str = "2g"
     cpu_limit: str = "2"
     env_vars: dict[str, str] = field(default_factory=dict)
+    auth_mode: str = "auto"
+
+    def __post_init__(self) -> None:
+        if self.auth_mode not in ("auto", "subscription", "api-key"):
+            raise ValueError(f"Unknown authentication mode: {self.auth_mode}")
+
+
+AUTH_MODES = ("auto", "subscription", "api-key")
+_SUBSCRIPTION_CREDENTIALS = {
+    "claude": (".claude/.credentials.json", "/home/agent/.claude/.credentials.json"),
+    "codex": (".codex/auth.json", "/home/agent/.codex/auth.json"),
+}
+_PROVIDER_KEYS = {"claude": "ANTHROPIC_API_KEY", "codex": "OPENAI_API_KEY"}
+
+
+def subscription_credential_mount(agent_cmd: str, home: Path | None = None) -> tuple[Path, str]:
+    """Resolve the host credential and container target for subscription auth."""
+    if agent_cmd not in _SUBSCRIPTION_CREDENTIALS:
+        raise ValueError(f"Subscription authentication is unsupported for agent {agent_cmd!r}")
+    relative, target = _SUBSCRIPTION_CREDENTIALS[agent_cmd]
+    source = (home or Path.home()) / relative
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"Subscription credentials not found: {source}. Log in with the {agent_cmd} CLI first."
+        )
+    try:
+        credential = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid subscription credential file: {source}") from exc
+    valid = (
+        credential.get("auth_mode") == "chatgpt"
+        if agent_cmd == "codex"
+        else isinstance(credential.get("claudeAiOauth"), dict)
+    )
+    if not valid:
+        raise ValueError(
+            f"{source} does not contain {agent_cmd} subscription OAuth credentials; log in with the CLI subscription account"
+        )
+    return source, target
+
+
+def should_forward_api_key(agent_cmd: str, key: str, auth_mode: str) -> bool:
+    """Prevent provider API keys from overriding an explicit OAuth subscription."""
+    return not (auth_mode == "subscription" and _PROVIDER_KEYS.get(agent_cmd) == key)
 
 
 class StatusLogger:
@@ -253,22 +297,29 @@ def run_sandbox_in_container(
             for item in rf.iterdir():
                 cmd += ["-v", f"{item.absolute()}:/{item.name}:ro"]
 
-        # Agent config mounts
-        cfg_map = {"codex": ".codex", "claude": ".claude", "vibe": ".vibe"}
-        if agent_cmd in cfg_map:
-            cfg_dir = Path.home() / cfg_map[agent_cmd]
-            if cfg_dir.exists():
-                cmd += ["-v", f"{cfg_dir}:/home/agent/{cfg_map[agent_cmd]}"]
+        # Authentication/config mounts. Explicit subscription mode mounts only
+        # the OAuth credential file, avoiding accidental config or key leakage.
+        if config.auth_mode == "subscription":
+            cred, target = subscription_credential_mount(agent_cmd)
+            cmd += ["-v", f"{cred}:{target}:ro"]
+        elif config.auth_mode == "auto":
+            cfg_map = {"codex": ".codex", "claude": ".claude", "vibe": ".vibe"}
+            if agent_cmd in cfg_map:
+                cfg_dir = Path.home() / cfg_map[agent_cmd]
+                if cfg_dir.exists():
+                    cmd += ["-v", f"{cfg_dir}:/home/agent/{cfg_map[agent_cmd]}"]
 
         if not config.network_enabled:
             cmd += ["--network", "none"]
 
         # Environment variables
         for k, v in config.env_vars.items():
-            cmd += ["-e", f"{k}={v}"]
+            if should_forward_api_key(agent_cmd, k, config.auth_mode):
+                cmd += ["-e", f"{k}={v}"]
         for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
                      "GOOGLE_API_KEY", "HF_TOKEN", "MISTRAL_API_KEY"):
-            if key in os.environ and key not in config.env_vars:
+            if (key in os.environ and key not in config.env_vars
+                    and should_forward_api_key(agent_cmd, key, config.auth_mode)):
                 cmd += ["-e", f"{key}={os.environ[key]}"]
 
         # Command logging: BASH_ENV is sourced by every non-interactive bash,
@@ -512,6 +563,8 @@ def main() -> None:
     rp.add_argument("--memory", default="2g")
     rp.add_argument("--cpus", default="2")
     rp.add_argument("--status-log", type=Path)
+    rp.add_argument("--auth", choices=AUTH_MODES, default="auto",
+                    help="Authentication backend (subscription uses CLI OAuth credentials)")
 
     # single
     sp = sub.add_parser("single", help="Run one sandbox")
@@ -521,6 +574,7 @@ def main() -> None:
     sp.add_argument("--agent", default="claude")
     sp.add_argument("--model", default=None)
     sp.add_argument("--timeout", type=int, default=300)
+    sp.add_argument("--auth", choices=AUTH_MODES, default="auto")
 
     args = parser.parse_args()
 
@@ -536,6 +590,7 @@ def main() -> None:
             image=args.image, timeout_seconds=args.timeout,
             network_enabled=not args.no_network,
             memory_limit=args.memory, cpu_limit=args.cpus,
+            auth_mode=args.auth,
         )
         agent_args = ["--model", args.model] if args.model else None
         args.results_dir.mkdir(parents=True, exist_ok=True)
@@ -557,7 +612,7 @@ def main() -> None:
     elif args.command == "single":
         if not image_exists(args.image):
             sys.exit(f"[error] Image '{args.image}' not found.")
-        cfg = ContainerConfig(image=args.image, timeout_seconds=args.timeout)
+        cfg = ContainerConfig(image=args.image, timeout_seconds=args.timeout, auth_mode=args.auth)
         a_args = ["--model", args.model] if args.model else None
         r = run_sandbox_in_container(
             args.sandbox_path, args.prompt, cfg,

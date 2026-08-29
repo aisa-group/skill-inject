@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -18,7 +20,126 @@ from scripts.run_sandbox_container import (
     save_results,
     run_all_sandboxes,
     load_env_file,
+    subscription_credential_mount,
+    should_forward_api_key,
 )
+
+
+# ---------------------------------------------------------------------------
+# Subscription authentication
+# ---------------------------------------------------------------------------
+
+class TestSubscriptionAuthentication:
+    @pytest.mark.parametrize(("agent", "relative", "target"), [
+        ("claude", ".claude/.credentials.json", "/home/agent/.claude/.credentials.json"),
+        ("codex", ".codex/auth.json", "/home/agent/.codex/auth.json"),
+    ])
+    def test_resolves_provider_credentials(self, tmp_path, agent, relative, target):
+        credential = tmp_path / relative
+        credential.parent.mkdir(parents=True)
+        credential.write_text(
+            json.dumps({"auth_mode": "chatgpt"}) if agent == "codex"
+            else json.dumps({"claudeAiOauth": {"accessToken": "test"}})
+        )
+        assert subscription_credential_mount(agent, tmp_path) == (credential, target)
+
+    def test_api_key_credential_is_rejected_as_subscription(self, tmp_path):
+        credential = tmp_path / ".codex" / "auth.json"
+        credential.parent.mkdir(parents=True)
+        credential.write_text(json.dumps({"auth_mode": "apikey", "OPENAI_API_KEY": "test"}))
+        with pytest.raises(ValueError, match="does not contain codex subscription"):
+            subscription_credential_mount("codex", tmp_path)
+
+    def test_missing_subscription_credentials_fail_clearly(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="Log in with the codex CLI"):
+            subscription_credential_mount("codex", tmp_path)
+
+    def test_unsupported_subscription_agent_fails(self, tmp_path):
+        with pytest.raises(ValueError, match="unsupported"):
+            subscription_credential_mount("gemini", tmp_path)
+
+    def test_invalid_auth_mode_fails(self):
+        with pytest.raises(ValueError, match="Unknown authentication mode"):
+            ContainerConfig(auth_mode="invalid")
+
+    @pytest.mark.parametrize(("agent", "key"), [
+        ("claude", "ANTHROPIC_API_KEY"),
+        ("codex", "OPENAI_API_KEY"),
+    ])
+    def test_subscription_suppresses_own_provider_key(self, agent, key):
+        assert not should_forward_api_key(agent, key, "subscription")
+        assert should_forward_api_key(agent, key, "api-key")
+        assert should_forward_api_key(agent, key, "auto")
+
+
+# ---------------------------------------------------------------------------
+# Container command integration
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("agent", "credential", "target", "key"), [
+    ("claude", ".claude/.credentials.json", "/home/agent/.claude/.credentials.json", "ANTHROPIC_API_KEY"),
+    ("codex", ".codex/auth.json", "/home/agent/.codex/auth.json", "OPENAI_API_KEY"),
+])
+def test_subscription_container_mounts_oauth_and_omits_api_key(
+    tmp_path, monkeypatch, agent, credential, target, key,
+):
+    import scripts.run_sandbox_container as mod
+
+    home = tmp_path / "home"
+    cred = home / credential
+    cred.parent.mkdir(parents=True)
+    cred.write_text(
+        json.dumps({"auth_mode": "chatgpt"}) if agent == "codex"
+        else json.dumps({"claudeAiOauth": {"accessToken": "test"}})
+    )
+    sandbox = tmp_path / "INST-1"
+    sandbox.mkdir()
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return MagicMock(stdout="ok", stderr="", returncode=0)
+
+    monkeypatch.setattr(mod.Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    monkeypatch.setenv(key, "must-not-leak")
+    result = mod.run_sandbox_in_container(
+        sandbox, "prompt", mod.ContainerConfig(auth_mode="subscription", env_vars={key: "must-not-leak"}), agent_cmd=agent,
+    )
+
+    assert result.success
+    assert f"{cred}:{target}:ro" in captured["cmd"]
+    assert not any("must-not-leak" in arg for arg in captured["cmd"] if isinstance(arg, str))
+
+
+def test_apptainer_subscription_uses_codex_oauth_without_api_key(tmp_path):
+    home = tmp_path / "home"
+    credential = home / ".codex" / "auth.json"
+    credential.parent.mkdir(parents=True)
+    credential.write_text(json.dumps({"auth_mode": "chatgpt"}))
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    sif = tmp_path / "image.sif"
+    sif.write_text("")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_apptainer = bin_dir / "apptainer"
+    fake_apptainer.write_text("#!/bin/sh\nprintf '%s\n' \"$@\"\n")
+    fake_apptainer.chmod(0o755)
+    env = os.environ.copy()
+    env.update({"HOME": str(home), "OPENAI_API_KEY": "must-not-leak",
+                "PATH": f"{bin_dir}:{env['PATH']}"})
+
+    result = subprocess.run(
+        ["bash", "apptainer/run_sandbox.sh", str(sif), str(sandbox),
+         "codex", "prompt", "10", "gpt-5.2-codex", "subscription"],
+        cwd=Path(__file__).resolve().parent.parent, env=env, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"{credential}:/workspace/.codex/auth.json:ro" in result.stdout
+    assert "must-not-leak" not in result.stdout
+    assert "login --with-api-key" not in result.stdout
 
 
 # ---------------------------------------------------------------------------

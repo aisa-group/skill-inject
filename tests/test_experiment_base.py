@@ -107,6 +107,23 @@ class TestBuildParser:
         args = parser.parse_args(["--agent", "claude", "--model", "sonnet"])
         assert args.model == "sonnet"
 
+    def test_subscription_auth_flag(self):
+        parser = DummyExperiment().build_parser()
+        args = parser.parse_args(["--agent", "claude", "--auth", "subscription"])
+        assert args.auth == "subscription"
+
+    def test_subscription_auth_is_forwarded_to_runner(self, tmp_path, monkeypatch):
+        exp = DummyExperiment()
+        calls = []
+        monkeypatch.setattr(exp, "ensure_docker_image", lambda: None)
+        monkeypatch.setattr("experiments._base.subprocess.run", lambda cmd, **kwargs: calls.append(cmd))
+        exp.run_agent(
+            "claude", "sonnet", tmp_path / "sandboxes", tmp_path / "results",
+            parallel=1, timeout=10, auth="subscription",
+        )
+        assert "--auth" in calls[0]
+        assert calls[0][calls[0].index("--auth") + 1] == "subscription"
+
 
 # ---------------------------------------------------------------------------
 # add_extra_args

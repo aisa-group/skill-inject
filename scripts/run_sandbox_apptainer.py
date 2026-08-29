@@ -137,6 +137,7 @@ def run_sandbox_in_apptainer(
     preserve_sandbox: bool = False,
     results_dir: Path | None = None,
     startup_scripts: list[str] | None = None,
+    auth_mode: str = "auto",
 ) -> RunResult:
     """Run one sandbox via apptainer/run_sandbox.sh."""
     sid = sandbox_path.name
@@ -167,7 +168,9 @@ def run_sandbox_in_apptainer(
         ]
         if model:
             cmd.append(model)
-
+        else:
+            cmd.append("")
+        cmd.append(auth_mode)
         r = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout + 30,
         )
@@ -226,6 +229,7 @@ def run_all_sandboxes(
     first_task_only: bool = False,
     sif_image: Path = DEFAULT_SIF,
     status_logger: StatusLogger | None = None,
+    auth_mode: str = "auto",
 ) -> list[RunResult]:
     """Run all sandboxes from a manifest with optional parallelism and resume."""
     manifest_path = sandboxes_root / "manifest.json"
@@ -296,6 +300,7 @@ def run_all_sandboxes(
             model=model, timeout=timeout, sif_image=sif_image,
             preserve_sandbox=True, results_dir=results_dir,
             startup_scripts=entry.get("startup_scripts"),
+            auth_mode=auth_mode,
         )
 
         with lock:
@@ -386,6 +391,7 @@ def main() -> None:
     rp.add_argument("--sif", type=Path, default=DEFAULT_SIF,
                      help="Path to .sif image")
     rp.add_argument("--status-log", type=Path)
+    rp.add_argument("--auth", choices=["auto", "subscription", "api-key"], default="auto")
 
     # single
     sp = sub.add_parser("single", help="Run one sandbox")
@@ -395,6 +401,7 @@ def main() -> None:
     sp.add_argument("--model", default=None)
     sp.add_argument("--timeout", type=int, default=600)
     sp.add_argument("--sif", type=Path, default=DEFAULT_SIF)
+    sp.add_argument("--auth", choices=["auto", "subscription", "api-key"], default="auto")
 
     args = parser.parse_args()
 
@@ -418,6 +425,7 @@ def main() -> None:
             results_dir=args.results_dir,
             first_task_only=args.first_task_only,
             sif_image=sif, status_logger=logger,
+            auth_mode=args.auth,
         )
         if results and args.output:
             save_results(results, args.results_dir / args.output.name)
@@ -430,6 +438,7 @@ def main() -> None:
             args.sandbox_path, args.prompt,
             agent_cmd=args.agent, model=args.model,
             timeout=args.timeout, sif_image=sif,
+            auth_mode=args.auth,
         )
         print(f"\nExit: {r.exit_code} | Duration: {r.duration_seconds:.1f}s | Success: {r.success}")
         if r.error:

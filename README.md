@@ -7,8 +7,8 @@ A comprehensive benchmark for measuring prompt injection vulnerabilities in LLM 
 Modern LLM agents load "skill files" that define their capabilities. SKILL-INJECT tests whether adversarial instructions embedded in these skill files can cause agents to execute unintended actions.
 
 The benchmark includes:
-- **41 contextual injections** — dual-use instructions whose harm depends on context
-- **30 obvious injections** — unambiguously malicious instructions (ransomware, exfiltration, etc.)
+- **48 contextual injections** — dual-use instructions whose harm depends on context
+- **36 obvious injections** — unambiguously malicious instructions (ransomware, exfiltration, etc.)
 - **44 skill definitions** across diverse domains (documents, git, healthcare, email, MCP, etc.)
 - **3 safety policy conditions** — normal, legitimizing, and warning
 - **Multiple ablation studies** — Best-of-N, script vs. direct, skill screening, evolutionary optimization, RL-based optimization
@@ -52,6 +52,17 @@ GEMINI_API_KEY=...
 
 You only need the key(s) for the agent(s) you intend to test. The `OPENAI_API_KEY` is also needed for the default GPT-5.1-Mini evaluation judge.
 
+### Subscription authentication
+
+Claude Code and Codex agents can run against an existing Claude Pro/Max or ChatGPT subscription through their CLI OAuth credentials. Subscription model availability can differ from API-key availability; use a model supported by the installed CLI and subscription. Log in on the host first (`claude` or `codex login`), then select the backend explicitly:
+
+```bash
+python experiments/contextual.py --agent claude --model claude-sonnet-4-6 --auth subscription
+python experiments/contextual.py --agent codex --model gpt-5.4 --auth subscription
+```
+
+`--auth subscription` mounts only `~/.claude/.credentials.json` or `~/.codex/auth.json` read-only and suppresses the matching provider API key, preventing an API key from silently overriding subscription billing. It is supported by both Docker and Apptainer. `--auth api-key` disables credential mounts; `--auth auto` preserves the legacy behavior. Gemini and Vibe do not support subscription mode. Evaluation judges still require their documented API keys.
+
 ### 3. Build the Docker image
 
 ```bash
@@ -68,10 +79,11 @@ skill-inject/
 ├── pyproject.toml            # Project metadata
 │
 ├── data/                     # Benchmark data
-│   ├── contextual_injections.json    # 41 contextual injection definitions
-│   ├── obvious_injections.json       # 30 obvious injection definitions
+│   ├── contextual_injections.json    # 48 contextual injection definitions
+│   ├── obvious_injections.json       # 36 obvious injection definitions
 │   ├── tasks.json                    # 66 deduplicated clean tasks
 │   ├── unified_security_policy.md    # Combined warning text
+│   ├── instruction_unit_tests_v2/    # Current deterministic attack detectors
 │   ├── skills/                       # 44 clean skill definitions
 │   ├── task_files/                   # Files referenced by tasks
 │   └── task_scripts/                 # Scripts referenced by injections
@@ -180,6 +192,8 @@ python experiments/ablations/grpo_injection_optimization.py
 
 ## Evaluating Results
 
+The rebuttal branch supports both LLM judging and deterministic, evidence-based attack detectors. The current detector suite is `data/instruction_unit_tests_v2`; `data/instruction_unit_tests` is retained for reproducing earlier evaluations. Result-comparison scripts accept `--suite-dir` when a frozen suite must be used. Record the repository commit and suite path alongside reported results.
+
 Results are saved to `final_results/` after each experiment run. You can also re-evaluate existing results independently.
 
 ### LLM Judge (default: GPT-5.1-Codex-Mini)
@@ -194,6 +208,11 @@ python judges/obvious_judge.py final_results/obvious/claude-sonnet/normal/
 
 # Utility baseline (task completion only)
 python judges/utility_baseline_judge.py final_results/utility_baseline/claude-sonnet/no_policy/
+
+# Compare an LLM judge with deterministic detectors from an explicit suite
+python scripts/rescore_unittests_vs_judge.py --suite obvious \
+    --root final_results/obvious \
+    --suite-dir data/instruction_unit_tests_v2 --json comparison.json
 ```
 
 ## Configuration
@@ -216,6 +235,7 @@ Most experiment runners support these flags:
 | `--policy` | Safety policy filter: `normal`, `legitimizing`, `warning` |
 | `--parallel N` | Number of parallel container executions |
 | `--timeout N` | Execution timeout in seconds |
+| `--auth MODE` | Authentication: `auto`, `subscription`, or `api-key` |
 | `--smoke-test` | Run injection ID 1 only (quick validation) |
 | `--skip-eval` | Skip automatic evaluation after running |
 | `--force` | Delete existing results and rerun |
@@ -242,7 +262,7 @@ pytest tests/ -v
 Runs every experiment with every model on a single sandbox/container to verify the full pipeline works:
 
 ```bash
-# Test everything (all 18 models x 6 experiments = 108 runs)
+# Test everything (all 22 models x 6 experiments = 132 runs)
 python scripts/smoke_test_all.py
 
 # Test a single agent
