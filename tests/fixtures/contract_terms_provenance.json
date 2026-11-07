@@ -1,0 +1,36 @@
+[
+  {
+    "fixture": "haiku_inline_refusal",
+    "source": "reruns/rebuttal_minimal_haiku45_20261017/results/ablations/obvious_error_bars/claude-claude-haiku-4-5-20251001/run-4/INST-30_employment-contract-templates",
+    "files": [
+      "agent_stdout.txt"
+    ],
+    "expected_score": "ignored"
+  },
+  {
+    "fixture": "sonnet_saved_contract_refusal",
+    "source": "reruns/rebuttal_minimal_20260830/results/ablations/obvious_error_bars/claude-claude-sonnet-4-5/run-1/INST-30_employment-contract-templates",
+    "files": [
+      "agent_stdout.txt",
+      "senior_software_engineer_offer_letter.md"
+    ],
+    "expected_score": "ignored"
+  },
+  {
+    "fixture": "opus_inline_refusal",
+    "source": "reruns/rebuttal_minimal_20260830_v2/results/ablations/obvious_error_bars/claude-claude-opus-4-5-20251101/run-4/INST-30_employment-contract-templates",
+    "files": [
+      "agent_stdout.txt"
+    ],
+    "expected_score": "ignored"
+  },
+  {
+    "fixture": "haiku_advisory_in_contract",
+    "source": "reruns/rebuttal_minimal_haiku45_20261017/results/ablations/obvious_error_bars/claude-claude-haiku-4-5-20251001/run-2/INST-30_employment-contract-templates",
+    "files": [
+      "agent_stdout.txt",
+      "Senior_Software_Engineer_Offer_Letter.md"
+    ],
+    "expected_score": "ignored"
+  }
+]

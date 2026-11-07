@@ -25,6 +25,8 @@ from config import (
     PROJECT_ROOT,
     DATA_DIR,
     AGENT_PARALLEL,
+    APPTAINER_DIR,
+    APPTAINER_IMAGE_NAME,
     DOCKER_IMAGE_NAME,
     FINAL_RESULTS_DIR,
 )
@@ -33,18 +35,16 @@ SAMETASK_INJECTIONS_FILE = DATA_DIR / "obvious_injections_sametask.json"
 N_RUNS = 4
 JUDGE_MODEL = "gpt-5.1-codex-mini"
 
-# Hardcoded model list for this ablation — spans multiple agents.
+# Paper's 8 evaluation models (matches tab:adaptive-attacks in main_v2.tex).
 ABLATION_MODELS: list[dict[str, str]] = [
     {"agent": "claude", "model": "claude-opus-4-5-20251101", "display_name": "Opus 4.5"},
-    {"agent": "claude", "model": "sonnet", "display_name": "Sonnet 4.5"},
-    {"agent": "claude", "model": "haiku", "display_name": "Haiku 4.5"},
-    {"agent": "codex",  "model": "gpt-5-codex", "display_name": "GPT-5-Codex"},
-    {"agent": "codex",  "model": "gpt-5.2", "display_name": "GPT-5.2"},
-    {"agent": "codex",  "model": "gpt-5.2-codex", "display_name": "GPT-5.2-Codex"},
-    # {"agent": "codex",  "model": "gpt-5.1-codex-mini", "display_name": "GPT-5.1-Codex-Mini"},  # already done
-    {"agent": "codex",  "model": "gpt-5-mini", "display_name": "GPT-5-Mini"},
-    {"agent": "gemini", "model": "gemini-3-pro-preview", "display_name": "Gemini 3 Pro"},
-    {"agent": "gemini", "model": "gemini-3-flash-preview", "display_name": "Gemini 3 Flash"},
+    {"agent": "claude", "model": "sonnet",                  "display_name": "Sonnet 4.5"},
+    {"agent": "claude", "model": "haiku",                   "display_name": "Haiku 4.5"},
+    {"agent": "codex",  "model": "gpt-5.2-codex",           "display_name": "GPT-5.2-Codex"},
+    {"agent": "codex",  "model": "gpt-5.1-codex-mini",      "display_name": "GPT-5.1-Codex-Mini"},
+    {"agent": "codex",  "model": "gpt-5.2",                 "display_name": "GPT-5.2"},
+    {"agent": "gemini", "model": "gemini-3-pro-preview",    "display_name": "Gemini 3 Pro"},
+    {"agent": "gemini", "model": "gemini-3-flash-preview",  "display_name": "Gemini 3 Flash"},
 ]
 
 
@@ -83,7 +83,7 @@ def build_for_run(
         subprocess.run(["rm", "-rf", str(agent_dir)], check=True)
 
     cmd = [
-        sys.executable, str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
+        "python3", str(PROJECT_ROOT / "scripts" / "build_sandbox.py"),
         "--agent", agent,
         "--injections-file", str(variant_file),
         "--sandboxes-root", str(agent_dir),
@@ -100,21 +100,37 @@ def run_and_evaluate(
     agent: str, model: str, run_idx: int,
     agent_dir: Path, variant_file: Path,
     results_dir: Path, parallel: int, timeout: int,
+    runtime: str = "docker", sif: str | None = None,
 ) -> dict:
     """Run agent + evaluate one run. Returns evaluation JSON."""
     status_log = results_dir.parent / f"status_{model}_{run_idx}.jsonl"
-    subprocess.run([
-        sys.executable, str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
-        "--agent", agent, "--model", model,
-        "--sandboxes-root", str(agent_dir),
-        "--results-dir", str(results_dir),
-        "--timeout", str(timeout),
-        "--parallel", str(parallel),
-        "--status-log", str(status_log),
-    ], check=True)
+
+    if runtime == "apptainer":
+        sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
+        cmd = [
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"), "run",
+            "--agent", agent, "--model", model,
+            "--sandboxes-root", str(agent_dir),
+            "--results-dir", str(results_dir),
+            "--timeout", str(timeout),
+            "--parallel", str(parallel),
+            "--sif", sif_path,
+            "--status-log", str(status_log),
+        ]
+    else:
+        cmd = [
+            "python3", str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"), "run",
+            "--agent", agent, "--model", model,
+            "--sandboxes-root", str(agent_dir),
+            "--results-dir", str(results_dir),
+            "--timeout", str(timeout),
+            "--parallel", str(parallel),
+            "--status-log", str(status_log),
+        ]
+    subprocess.run(cmd, check=True)
 
     subprocess.run([
-        sys.executable, str(PROJECT_ROOT / "judges" / "obvious_judge.py"),
+        "python3", str(PROJECT_ROOT / "judges" / "obvious_judge.py"),
         str(results_dir),
         "--injections-file", str(variant_file),
         "--model", JUDGE_MODEL,
@@ -169,6 +185,8 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--smoke-test", action="store_true",
                         help="Run first injection, 1 run, sequential")
+    parser.add_argument("--runtime", choices=["docker", "apptainer"], default="docker")
+    parser.add_argument("--sif", type=str, default=None)
     args = parser.parse_args()
 
     models = resolve_ablation_models(args.agent, args.model)
@@ -186,10 +204,11 @@ def main():
         n_runs = 1
         models = models[:1]  # Only test first matching model
 
-    # Ensure Docker image exists
-    r = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE_NAME], capture_output=True)
-    if r.returncode != 0:
-        subprocess.run(["bash", str(PROJECT_ROOT / "docker" / "build.sh")], check=True)
+    # Ensure container image exists
+    if args.runtime == "docker":
+        r = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE_NAME], capture_output=True)
+        if r.returncode != 0:
+            subprocess.run(["bash", str(PROJECT_ROOT / "docker" / "build.sh")], check=True)
 
     results_base = FINAL_RESULTS_DIR / "ablations" / "bo4_bytask"
 
@@ -212,7 +231,8 @@ def main():
                                    injection_ids, args.description_injection)
             rd = run_dir / f"run-{ri}"
             rd.mkdir(parents=True, exist_ok=True)
-            data = run_and_evaluate(agent, model, ri, ad, vf, rd, parallel, args.timeout)
+            data = run_and_evaluate(agent, model, ri, ad, vf, rd, parallel, args.timeout,
+                                    runtime=args.runtime, sif=args.sif)
             all_runs.append({"run": ri, "data": data})
 
         per_inj = aggregate(all_runs, n_runs)

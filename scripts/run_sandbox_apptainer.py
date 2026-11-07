@@ -103,6 +103,30 @@ def _needs_prompt_fallback(agent_cmd: str) -> bool:
     return agent_cmd not in _SYSTEM_PROMPT_AGENTS
 
 
+def _completed_result_is_successful(result_dir: Path) -> bool:
+    """Return true only when a prior sandbox invocation completed successfully."""
+    marker = result_dir / "run_result.json"
+    if marker.exists():
+        try:
+            return json.loads(marker.read_text(encoding="utf-8")).get("success") is True
+        except (OSError, json.JSONDecodeError):
+            return False
+
+    # Backward compatibility for results produced before run_result.json existed.
+    stdout_file = result_dir / "agent_stdout.txt"
+    if not stdout_file.exists():
+        return False
+    try:
+        lines = stdout_file.read_text(
+            encoding="utf-8", errors="replace",
+        ).lstrip().splitlines()
+        first_line = lines[0]
+    except (OSError, IndexError):
+        return False
+    known_failures = ("Failed to authenticate", "Authentication failed", "Error:")
+    return not first_line.startswith(known_failures)
+
+
 def _execute_startup_scripts(
     work: Path, scripts: list[str] | None, agent: str,
 ) -> None:
@@ -137,6 +161,7 @@ def run_sandbox_in_apptainer(
     preserve_sandbox: bool = False,
     results_dir: Path | None = None,
     startup_scripts: list[str] | None = None,
+    auth_mode: str = "auto",
 ) -> RunResult:
     """Run one sandbox via apptainer/run_sandbox.sh."""
     sid = sandbox_path.name
@@ -167,7 +192,9 @@ def run_sandbox_in_apptainer(
         ]
         if model:
             cmd.append(model)
-
+        else:
+            cmd.append("")
+        cmd.append(auth_mode)
         r = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout + 30,
         )
@@ -194,9 +221,23 @@ def run_sandbox_in_apptainer(
         if stderr:
             (dest / "agent_stderr.txt").write_text(stderr, encoding="utf-8")
 
+        error_text = stderr.strip() or stdout.strip()
+        (dest / "run_result.json").write_text(
+            json.dumps({
+                "exit_code": rc,
+                "success": rc == 0,
+                "duration_seconds": duration,
+                "error": error_text.splitlines()[0] if rc != 0 and error_text else None,
+            }, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     error_msg = None
     if rc == -1 and not stderr:
         error_msg = f"Timeout after {timeout}s"
+    elif rc != 0:
+        error_text = stderr.strip() or stdout.strip()
+        error_msg = error_text.splitlines()[0] if error_text else f"Agent exited with code {rc}"
 
     result = RunResult(
         sandbox_id=sid, exit_code=rc, stdout=stdout, stderr=stderr,
@@ -226,6 +267,7 @@ def run_all_sandboxes(
     first_task_only: bool = False,
     sif_image: Path = DEFAULT_SIF,
     status_logger: StatusLogger | None = None,
+    auth_mode: str = "auto",
 ) -> list[RunResult]:
     """Run all sandboxes from a manifest with optional parallelism and resume."""
     manifest_path = sandboxes_root / "manifest.json"
@@ -251,7 +293,7 @@ def run_all_sandboxes(
         before = len(entries)
         entries = [
             e for e in entries
-            if not (results_dir / e["sandbox_id"] / "agent_stdout.txt").exists()
+            if not _completed_result_is_successful(results_dir / e["sandbox_id"])
         ]
         skipped = before - len(entries)
         if skipped:
@@ -296,6 +338,7 @@ def run_all_sandboxes(
             model=model, timeout=timeout, sif_image=sif_image,
             preserve_sandbox=True, results_dir=results_dir,
             startup_scripts=entry.get("startup_scripts"),
+            auth_mode=auth_mode,
         )
 
         with lock:
@@ -386,6 +429,7 @@ def main() -> None:
     rp.add_argument("--sif", type=Path, default=DEFAULT_SIF,
                      help="Path to .sif image")
     rp.add_argument("--status-log", type=Path)
+    rp.add_argument("--auth", choices=["auto", "subscription", "api-key"], default=os.environ.get("SKILL_INJECT_AUTH", "auto"))
 
     # single
     sp = sub.add_parser("single", help="Run one sandbox")
@@ -395,6 +439,7 @@ def main() -> None:
     sp.add_argument("--model", default=None)
     sp.add_argument("--timeout", type=int, default=600)
     sp.add_argument("--sif", type=Path, default=DEFAULT_SIF)
+    sp.add_argument("--auth", choices=["auto", "subscription", "api-key"], default=os.environ.get("SKILL_INJECT_AUTH", "auto"))
 
     args = parser.parse_args()
 
@@ -418,18 +463,22 @@ def main() -> None:
             results_dir=args.results_dir,
             first_task_only=args.first_task_only,
             sif_image=sif, status_logger=logger,
+            auth_mode=args.auth,
         )
         if results and args.output:
             save_results(results, args.results_dir / args.output.name)
         if results:
             ok = sum(1 for r in results if r.success)
             print(f"\n[summary] {ok}/{len(results)} succeeded")
+            if ok != len(results):
+                sys.exit(1)
 
     elif args.command == "single":
         r = run_sandbox_in_apptainer(
             args.sandbox_path, args.prompt,
             agent_cmd=args.agent, model=args.model,
             timeout=args.timeout, sif_image=sif,
+            auth_mode=args.auth,
         )
         print(f"\nExit: {r.exit_code} | Duration: {r.duration_seconds:.1f}s | Success: {r.success}")
         if r.error:
@@ -438,6 +487,8 @@ def main() -> None:
             print(f"\n=== STDOUT ===\n{r.stdout}")
         if r.stderr:
             print(f"\n=== STDERR ===\n{r.stderr}")
+        if not r.success:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

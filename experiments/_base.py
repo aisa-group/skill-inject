@@ -62,6 +62,10 @@ class ExperimentRunner:
             help="Container runtime to use (default: docker)",
         )
         p.add_argument(
+            "--auth", choices=["auto", "subscription", "api-key"], default="auto",
+            help="Agent authentication backend; subscription uses Claude/Codex CLI OAuth",
+        )
+        p.add_argument(
             "--sif", type=str, default=None,
             help="Path to .sif image (apptainer runtime only)",
         )
@@ -160,6 +164,7 @@ class ExperimentRunner:
         status_log: Path | None = None,
         runtime: str = "docker",
         sif: str | None = None,
+        auth: str = "auto",
     ) -> None:
         if runtime == "apptainer":
             sif_path = sif or str(APPTAINER_DIR / APPTAINER_IMAGE_NAME)
@@ -173,6 +178,7 @@ class ExperimentRunner:
                 "--timeout", str(timeout),
                 "--parallel", str(parallel),
                 "--sif", sif_path,
+                "--auth", auth,
             ]
         else:
             self.ensure_docker_image()
@@ -186,6 +192,7 @@ class ExperimentRunner:
                 "--timeout", str(timeout),
                 "--parallel", str(parallel),
             ]
+            cmd += ["--auth", auth]
         if status_log:
             cmd += ["--status-log", str(status_log)]
         subprocess.run(cmd, check=True)
@@ -253,7 +260,7 @@ class ExperimentRunner:
                 print(f"\n[run] {display} / {policy} (runtime={runtime})")
                 self.run_agent(
                     agent, model, agent_dirs[policy], rd, parallel,
-                    args.timeout, sl, runtime=runtime, sif=sif,
+                    args.timeout, sl, runtime=runtime, sif=sif, auth=args.auth,
                 )
 
                 if not args.skip_eval:

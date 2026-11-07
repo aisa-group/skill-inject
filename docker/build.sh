@@ -1,5 +1,9 @@
 #!/bin/bash
 # Quick build script for instruct-bench Docker image
+if [ "${SKILL_INJECT_RUNTIME:-}" = "apptainer" ]; then
+    echo "[info] Docker build skipped: SKILL_INJECT_RUNTIME=apptainer"
+    exit 0
+fi
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

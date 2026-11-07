@@ -1,13 +1,16 @@
 """Shared configuration for the SKILL-INJECT benchmark."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 DATA_DIR = PROJECT_ROOT / "data"
 SKILL_ROOT = DATA_DIR / "skills"
-FINAL_RESULTS_DIR = PROJECT_ROOT / "final_results"
+FINAL_RESULTS_DIR = Path(
+    os.environ.get("SKILL_INJECT_RESULTS_DIR", PROJECT_ROOT / "final_results")
+).resolve()
 DOCKER_DIR = PROJECT_ROOT / "docker"
 STARTUP_SCRIPTS_DIR = PROJECT_ROOT / "startup_scripts"
 
@@ -23,6 +26,7 @@ APPTAINER_IMAGE_NAME = "instruct-bench-agent.sif"
 
 AGENT_MODELS: dict[str, list[dict[str, str]]] = {
     "codex": [
+        {"model": "gpt-5.4", "display_name": "Codex (5.4)"},
         {"model": "gpt-5.2-codex", "display_name": "Codex (5.2-codex)"},
         {"model": "gpt-5.1-codex-max", "display_name": "Codex (5.1-max)"},
         {"model": "gpt-5.1-codex-mini", "display_name": "Codex (5.1-mini)"},
@@ -36,7 +40,13 @@ AGENT_MODELS: dict[str, list[dict[str, str]]] = {
     ],
     "claude": [
         {"model": "sonnet", "display_name": "Claude Code (Sonnet)"},
+        # Pinned Sonnet releases.  The `sonnet` alias tracks the current model,
+        # which makes it useless for reproducing a published number: the paper's
+        # Sonnet rows were measured on 4.6.
+        {"model": "claude-sonnet-4-6", "display_name": "Claude Code (Sonnet 4.6)"},
+        {"model": "claude-sonnet-4-5", "display_name": "Claude Code (Sonnet 4.5)"},
         {"model": "claude-opus-4-5-20251101", "display_name": "Claude Code (Opus)"},
+        {"model": "claude-haiku-4-5-20251001", "display_name": "Claude Code (Haiku 4.5)"},
         {"model": "haiku", "display_name": "Claude Code (Haiku)"},
     ],
     "gemini": [
@@ -74,7 +84,7 @@ SKILL_MAPPING: dict[str, str] = {
 
 AGENT_PARALLEL: dict[str, int] = {
     "codex": 17,
-    "claude": 15,
+    "claude": 4,
     "gemini": 5,
     "vibe": 10,
 }
@@ -99,21 +109,28 @@ POLICY_CONFIGS: dict[str, dict] = {
 
 MODEL_CLI_MAP: dict[str, tuple[str, str]] = {
     "sonnet": ("claude", "sonnet"),
+    "claude-sonnet-4-6": ("claude", "claude-sonnet-4-6"),
+    "claude-sonnet-4-5": ("claude", "claude-sonnet-4-5"),
     "claude-opus-4-5-20251101": ("claude", "claude-opus-4-5-20251101"),
+    "claude-haiku-4-5-20251001": ("claude", "claude-haiku-4-5-20251001"),
     "haiku": ("claude", "haiku"),
     "gemini-2.5-pro": ("gemini", "gemini-2.5-pro"),
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),
-    "gemini-3-flash": ("gemini", "gemini-3-flash-lite"),
-    "gemini-3-pro": ("gemini", "gemini-3-pro-preview"),
+    "gemini-3-flash-preview": ("gemini", "gemini-3-flash-preview"),
+    "gemini-3-pro-preview": ("gemini", "gemini-3-pro-preview"),
+    "gpt-5.4": ("codex", "gpt-5.4"),
     "gpt-5.2-codex": ("codex", "gpt-5.2-codex"),
     "gpt-5.1-codex-max": ("codex", "gpt-5.1-codex-max"),
     "gpt-5.1-codex-mini": ("codex", "gpt-5.1-codex-mini"),
     "gpt-5.2": ("codex", "gpt-5.2"),
-    "gpt-4": ("codex", "gpt-4"),
+    "gpt-5.1": ("codex", "gpt-5.1"),
+    "gpt-4.1": ("codex", "gpt-4.1"),
     "gpt-5-nano": ("codex", "gpt-5-nano"),
     "gpt-5-codex": ("codex", "gpt-5-codex"),
     "gpt-5-mini": ("codex", "gpt-5-mini"),
     "gpt-5.4-mini": ("codex", "gpt-5.4-mini"),
+    "devstral-small": ("vibe", "devstral-small"),
+    "devstral-2": ("vibe", "devstral-2"),
 }
 
 

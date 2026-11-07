@@ -45,6 +45,9 @@ class UtilityBaselineExperiment:
                        help="Run only this condition (default: both)")
         p.add_argument("--parallel", type=int, default=None)
         p.add_argument("--timeout", type=int, default=self.default_timeout)
+        p.add_argument("--runtime", choices=["docker", "apptainer"], default="docker")
+        p.add_argument("--sif", default=None)
+        p.add_argument("--auth", choices=["auto", "subscription", "api-key"], default="auto")
         p.add_argument("--skip-eval", action="store_true",
                        help="Skip evaluation after running agents")
         p.add_argument("--force", action="store_true",
@@ -92,11 +95,13 @@ class UtilityBaselineExperiment:
         print(f"\n[build] {condition}")
         subprocess.run(cmd, check=True)
 
-    def run_agent(self, agent, model, sandboxes_dir, results_dir, parallel, timeout):
+    def run_agent(self, agent, model, sandboxes_dir, results_dir, parallel, timeout,
+                  runtime="docker", sif=None, auth="auto"):
         """Run agent on sandboxes."""
+        runner = "run_sandbox_apptainer.py" if runtime == "apptainer" else "run_sandbox_container.py"
         cmd = [
             sys.executable,
-            str(PROJECT_ROOT / "scripts" / "run_sandbox_container.py"),
+            str(PROJECT_ROOT / "scripts" / runner),
             "run",
             "--sandboxes-root", str(sandboxes_dir),
             "--results-dir", str(results_dir),
@@ -105,6 +110,9 @@ class UtilityBaselineExperiment:
             "--parallel", str(parallel),
             "--timeout", str(timeout),
         ]
+        cmd += ["--auth", auth]
+        if runtime == "apptainer" and sif:
+            cmd += ["--sif", str(sif)]
 
         print(f"[run] {agent} ({model}) on {sandboxes_dir.name}")
         subprocess.run(cmd, check=True)
@@ -134,7 +142,8 @@ class UtilityBaselineExperiment:
 
         # Run agents
         parallel = args.parallel if args.parallel else AGENT_PARALLEL.get(agent, 15)
-        self.run_agent(agent, model, sandboxes_dir, results_dir, parallel, args.timeout)
+        self.run_agent(agent, model, sandboxes_dir, results_dir, parallel, args.timeout,
+                       runtime=args.runtime, sif=args.sif, auth=args.auth)
 
         # Evaluate
         if not args.skip_eval:
@@ -144,8 +153,9 @@ class UtilityBaselineExperiment:
         parser = self.build_parser()
         args = parser.parse_args()
 
-        # Check Docker
-        self.ensure_docker_image()
+        # Check Docker only when selected.
+        if args.runtime == "docker":
+            self.ensure_docker_image()
 
         # Resolve models
         agent = args.agent
@@ -162,6 +172,7 @@ class UtilityBaselineExperiment:
         print(f"Models: {', '.join(model_names)}")
         print(f"Conditions: {', '.join(conditions)}")
         print(f"Parallel: {args.parallel or AGENT_PARALLEL.get(agent, 15)}")
+        print(f"Runtime/auth: {args.runtime}/{args.auth}")
         print(f"{'='*60}\n")
 
         # Run experiments
