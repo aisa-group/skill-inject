@@ -28,6 +28,14 @@ if [ "$AUTH_MODE" = "subscription" ] && [ "$AGENT" != "claude" ] && [ "$AGENT" !
     exit 2
 fi
 
+# These variables bypass --cleanenv. Subscription runs must not inherit an
+# API key or an alternate provider through Apptainer's environment overrides.
+if [ "$AUTH_MODE" = "subscription" ]; then
+    for key in ${!APPTAINERENV_@} ${!SINGULARITYENV_@}; do
+        unset "$key"
+    done
+fi
+
 SANDBOX_PATH="$(cd "$SANDBOX_PATH" && pwd)"  # resolve to absolute path
 
 # ── Load API keys ─────────────────────────────────────────────────────────────
@@ -42,8 +50,8 @@ for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY HF_TOK
     # Condor's $ENV(VAR) renders the literal string "UNDEFINED" when the var
     # isn't set in the submit shell. Treat that as unset, otherwise the bogus
     # value gets passed to the agent CLI as if it were a real key.
-    if [ "$AUTH_MODE" = "subscription" ] && { [ "$AGENT" = "claude" ] && [ "$key" = "ANTHROPIC_API_KEY" ] || [ "$AGENT" = "codex" ] && [ "$key" = "OPENAI_API_KEY" ]; }; then
-        continue
+    if [ "$AUTH_MODE" = "subscription" ]; then
+        case "$key" in *_API_KEY|HF_TOKEN) continue ;; esac
     fi
     if [ -n "$val" ] && [ "$val" != "UNDEFINED" ]; then
         ENV_FLAGS+=(--env "${key}=${val}")
@@ -52,16 +60,13 @@ done
 
 # 2. Load from .env (overwrites shell env for any key present in the file)
 ENV_FILE="$SCRIPT_DIR/.env"
-if [ -f "$ENV_FILE" ]; then
+if [ "$AUTH_MODE" != "subscription" ] && [ -f "$ENV_FILE" ]; then
     while IFS='=' read -r key value; do
         # Skip comments and blank lines
         [[ "$key" =~ ^[[:space:]]*# ]] && continue
         [[ -z "$key" ]] && continue
         key="$(echo "$key" | xargs)"
         value="$(echo "$value" | xargs)"
-        if [ "$AUTH_MODE" = "subscription" ] && { [ "$AGENT" = "claude" ] && [ "$key" = "ANTHROPIC_API_KEY" ] || [ "$AGENT" = "codex" ] && [ "$key" = "OPENAI_API_KEY" ]; }; then
-            continue
-        fi
         [ -n "$value" ] && ENV_FLAGS+=(--env "${key}=${value}")
     done < "$ENV_FILE"
 fi
@@ -173,6 +178,12 @@ esac
 CMD_LOGGER="${SANDBOX_PATH}/.bash_command_logger.sh"
 printf 'trap '\''echo "$BASH_COMMAND" >> /workspace/.command_history'\'' DEBUG\n' > "$CMD_LOGGER"
 ENV_FLAGS+=(--env "BASH_ENV=/workspace/.bash_command_logger.sh")
+
+# Claude's Read/Write/Edit and other native tools do not start a shell. Install
+# a project-local PreToolUse hook so those calls share the same evidence log.
+if [ "$AGENT" = "claude" ]; then
+    python3 "$SCRIPT_DIR/../scripts/claude_tool_logger.py" "$SANDBOX_PATH"
+fi
 
 # ── Security protocol via system prompt ──────────────────────────────────────
 SECURITY_FILE="${SANDBOX_PATH}/SECURITY_PROTOCOL.md"

@@ -10,6 +10,9 @@ import sys
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Callable
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from judges.contract_terms import UnresolvedContractEvidence
+
 
 # Discover tests from filenames so adding a detector cannot leave the runner registry stale.
 INSTRUCTION_TEST_MODULES = {
@@ -94,6 +97,8 @@ def run_test(instruction_id: int, sandbox_dir: Path) -> Tuple[bool, str]:
 
     try:
         return test_func(sandbox_dir)
+    except UnresolvedContractEvidence:
+        raise
     except Exception as e:
         return False, f"Test error: {str(e)}"
 
@@ -116,6 +121,8 @@ def run_obvious_test(injection_id: int, sandbox_dir: Path) -> Tuple[bool, str]:
 
     try:
         return test_func(sandbox_dir)
+    except UnresolvedContractEvidence:
+        raise
     except Exception as e:
         return False, f"Test error: {str(e)}"
 

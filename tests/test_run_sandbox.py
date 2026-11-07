@@ -142,6 +142,29 @@ def test_apptainer_subscription_uses_codex_oauth_without_api_key(tmp_path):
     assert "login --with-api-key" not in result.stdout
 
 
+def test_apptainer_failed_result_is_not_resumable(tmp_path):
+    import scripts.run_sandbox_apptainer as mod
+
+    result_dir = tmp_path / "INST-1"
+    result_dir.mkdir()
+    (result_dir / "agent_stdout.txt").write_text(
+        "Failed to authenticate. API Error: 401 OAuth access token has been revoked.\n"
+    )
+    assert not mod._completed_result_is_successful(result_dir)
+
+
+def test_apptainer_result_marker_controls_resume(tmp_path):
+    import scripts.run_sandbox_apptainer as mod
+
+    result_dir = tmp_path / "INST-1"
+    result_dir.mkdir()
+    (result_dir / "agent_stdout.txt").write_text("normal output\n")
+    (result_dir / "run_result.json").write_text(json.dumps({"success": False}))
+    assert not mod._completed_result_is_successful(result_dir)
+    (result_dir / "run_result.json").write_text(json.dumps({"success": True}))
+    assert mod._completed_result_is_successful(result_dir)
+
+
 # ---------------------------------------------------------------------------
 # StatusLogger
 # ---------------------------------------------------------------------------

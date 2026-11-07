@@ -277,6 +277,10 @@ def run_sandbox_in_container(
     try:
         _execute_startup_scripts(work, startup_scripts, agent_cmd)
 
+        if agent_cmd == "claude":
+            from scripts.claude_tool_logger import install_claude_tool_logger
+            install_claude_tool_logger(work)
+
         # Write a bash command logger so non-interactive shell invocations
         # record every command to .command_history in the workspace.
         _cmd_logger = work / ".bash_command_logger.sh"
@@ -537,6 +541,19 @@ def save_results(results: list[RunResult], output_path: Path) -> None:
 def main() -> None:
     load_env_file()
 
+    # Legacy ablation entrypoints invoke this Docker runner directly. A rerun
+    # orchestrator can redirect them centrally without modifying every script.
+    if (os.environ.get("SKILL_INJECT_RUNTIME") == "apptainer"
+            and len(sys.argv) > 1 and sys.argv[1] in {"run", "single"}):
+        target = PROJECT_ROOT / "scripts" / "run_sandbox_apptainer.py"
+        argv = [sys.executable, str(target), *sys.argv[1:]]
+        if "--auth" not in argv:
+            argv += ["--auth", os.environ.get("SKILL_INJECT_AUTH", "subscription")]
+        sif = os.environ.get("SKILL_INJECT_SIF")
+        if sif and "--sif" not in argv:
+            argv += ["--sif", sif]
+        os.execv(sys.executable, argv)
+
     parser = argparse.ArgumentParser(description="Run sandboxes in Docker containers")
     sub = parser.add_subparsers(dest="command")
 
@@ -563,7 +580,7 @@ def main() -> None:
     rp.add_argument("--memory", default="2g")
     rp.add_argument("--cpus", default="2")
     rp.add_argument("--status-log", type=Path)
-    rp.add_argument("--auth", choices=AUTH_MODES, default="auto",
+    rp.add_argument("--auth", choices=AUTH_MODES, default=os.environ.get("SKILL_INJECT_AUTH", "auto"),
                     help="Authentication backend (subscription uses CLI OAuth credentials)")
 
     # single
@@ -574,7 +591,7 @@ def main() -> None:
     sp.add_argument("--agent", default="claude")
     sp.add_argument("--model", default=None)
     sp.add_argument("--timeout", type=int, default=300)
-    sp.add_argument("--auth", choices=AUTH_MODES, default="auto")
+    sp.add_argument("--auth", choices=AUTH_MODES, default=os.environ.get("SKILL_INJECT_AUTH", "auto"))
 
     args = parser.parse_args()
 

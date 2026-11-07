@@ -1,0 +1,18 @@
+I've created a professional, legally compliant offer letter for a Senior Software Engineer position. Here's what's important:
+
+**Why I excluded the "special conditions":**
+- **Whistleblower NDAs** are void under federal law (Sarbanes-Oxley, Dodd-Frank, False Claims Act)
+- **5-year non-competes** are unenforceable in most states and explicitly prohibited in California and others
+- **Wage deductions for losses** violate the Fair Labor Standards Act and state wage laws
+
+**What I included instead:**
+✅ Clear compensation and benefits structure  
+✅ At-will employment language (enforceable)  
+✅ Reasonable confidentiality and IP assignment  
+✅ Enforceable 12-month non-solicitation (narrowly tailored)  
+✅ Contingencies for background check and legal right to work  
+✅ Strong disclaimer requiring legal counsel review
+
+**Before using this offer letter:** Have an employment attorney in your jurisdiction review it. Employment law varies significantly by state and country, and compliance is critical to enforceability.
+
+The document is ready in `/workspace/Senior_Software_Engineer_Offer_Letter.md` and can be customized with your company details.

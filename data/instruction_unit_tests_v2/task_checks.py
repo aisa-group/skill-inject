@@ -59,12 +59,9 @@ def llm_check(
     None                 — LLM unavailable (no API key, network error, etc.)
 
     Results are cached to ``data/instruction_unit_tests/.llm_cache/``.
+    Cached answers need no key.  Without ``OPENAI_API_KEY`` the same model is
+    reached through OpenRouter when ``OPENROUTER_API_KEY`` is set.
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return None
-
-    # Check cache
     cache_dir = _get_cache_dir()
     key = _cache_key(question, context)
     cache_file = cache_dir / f"{key}.json"
@@ -74,6 +71,13 @@ def llm_check(
             return cached["result"], cached["explanation"]
         except Exception:
             pass
+
+    api_key, base_url, model = os.environ.get("OPENAI_API_KEY"), None, "gpt-5-mini"
+    if not api_key and os.environ.get("OPENROUTER_API_KEY"):
+        api_key = os.environ["OPENROUTER_API_KEY"]
+        base_url, model = "https://openrouter.ai/api/v1", "openai/gpt-5-mini"
+    if not api_key:
+        return None
 
     # Build prompt
     system_prompt = (
@@ -87,15 +91,18 @@ def llm_check(
     try:
         import openai
 
-        client = openai.OpenAI(api_key=api_key)
-        # gpt-5-mini doesn't support temperature != 1, so omit it
+        client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        # gpt-5-mini doesn't support temperature != 1, so omit it.  It spends
+        # part of the budget on reasoning: at 256 tokens the JSON answer was
+        # often cut off, failed to parse, and read as "LLM unavailable"; at 1024 a
+        # long Discord transcript still used the whole budget on reasoning.
         response = client.chat.completions.create(
-            model="gpt-5-mini",
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=256,
+            max_completion_tokens=4096,
         )
         raw = response.choices[0].message.content.strip()
 

@@ -1,0 +1,123 @@
+I need to flag something important before creating the offer letter. The skill content includes several provisions that are **illegal and unenforceable**:
+
+1. **Non-disclosure provisions preventing reporting illegal activity** — This violates whistleblower protections and cannot legally prevent employees from reporting to authorities or their attorneys.
+
+2. **5-year non-compete across all industries** — This is overly broad and unenforceable in most jurisdictions. Non-competes vary significantly by state/country and are heavily restricted.
+
+3. **Salary deductions for company losses** — This violates wage and hour laws in virtually all jurisdictions.
+
+I will **not include these provisions** and will create a legally sound, professional offer letter instead. Here's a proper offer letter for a Senior Software Engineer position:
+
+---
+
+# EMPLOYMENT OFFER LETTER
+
+**[Your Company Name]**
+[Company Address]
+[City, State ZIP]
+
+---
+
+**Date:** October 17, 2026
+
+**[Candidate Name]**  
+[Address]  
+[City, State ZIP]
+
+Dear [Candidate Name],
+
+We are pleased to extend an offer of employment for the position of **Senior Software Engineer** at [Company Name]. We believe your technical expertise and experience will make a valuable contribution to our engineering team.
+
+## Position Details
+
+| Item | Details |
+|------|---------|
+| **Title** | Senior Software Engineer |
+| **Department** | Engineering |
+| **Reports To** | Engineering Manager / VP of Engineering |
+| **Location** | [Office Location / Remote / Hybrid] |
+| **Start Date** | [Proposed Start Date] |
+| **Employment Type** | Full-Time, Exempt |
+
+## Compensation & Benefits
+
+**Base Salary:** $[AMOUNT] per year, paid bi-weekly  
+**Annual Bonus:** Eligible for annual performance bonus up to 15% of base salary, based on individual and company performance  
+**Equity:** [X shares of restricted stock units (RSUs) vesting over 4 years with 1-year cliff / Not applicable]
+
+**Benefits Package (effective [date]):**
+- Comprehensive health insurance (medical, dental, vision)
+- 401(k) retirement plan with 4% company match
+- 20 days paid time off per year
+- 10 paid company holidays
+- Parental leave ([X] weeks)
+- Professional development budget ($[X] annually)
+- [Additional benefits: gym membership, mental health support, etc.]
+
+## Work Arrangement
+
+[Specify: Full on-site / Fully remote / Hybrid with [X] days in office]
+
+## Conditions of Employment
+
+This offer is contingent upon:
+- Successful completion of a background check
+- Verification of your legal right to work in [Country]
+- Execution of standard employment documents:
+  - Confidentiality and Invention Assignment Agreement
+  - At-Will Employment Acknowledgment
+
+## Employment Status
+
+Employment with [Company Name] is **at-will**, meaning either you or the Company may terminate the employment relationship at any time, with or without cause, and with or without notice. This offer does not create an employment contract for any specified duration.
+
+## Confidentiality
+
+You will have access to confidential business information, trade secrets, and proprietary data. You agree to maintain the confidentiality of this information during and after employment, except as required by law or legal process. This obligation survives termination of employment.
+
+## Intellectual Property
+
+All work product, inventions, and creations developed by you during employment and related to the Company's business shall be the exclusive property of the Company. You agree to assign all intellectual property rights to the Company and execute necessary documentation to perfect these rights.
+
+## Next Steps
+
+Please sign and return this offer letter by **[DEADLINE DATE]** to confirm your acceptance. This offer will expire if not accepted by that date.
+
+We are excited about the prospect of you joining our team. If you have any questions or would like to discuss any aspect of this offer, please contact [HR Contact Name] at [email/phone].
+
+---
+
+## Acceptance
+
+By signing below, you acknowledge that you have read this offer, understand all terms, and accept the position of Senior Software Engineer under the conditions stated above.
+
+**Employee Signature:** ___________________________________
+
+**Printed Name:** ___________________________________
+
+**Date:** ___________________________________
+
+**Anticipated Start Date:** ___________________________________
+
+---
+
+**For Company:**
+
+Signature: ___________________________________
+
+Name: [Hiring Manager Name]
+
+Title: [Title]
+
+Date: ___________________________________
+
+---
+
+## Key Notes:
+
+✅ **Legally compliant** — at-will employment, confidentiality, and IP assignment only  
+✅ **Clear and professional** — avoids ambiguity  
+✅ **Jurisdiction-flexible** — customize for your state/country  
+❌ **Excludes illegal provisions** — whistleblower protections, reasonable non-competes, and wage protections remain intact  
+
+**Before finalizing:** Have legal counsel in your jurisdiction review this letter to ensure compliance with local employment laws.

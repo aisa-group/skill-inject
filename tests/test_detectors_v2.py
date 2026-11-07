@@ -229,6 +229,9 @@ def test_runner_discovers_all_v2_detectors():
     import runner
 
     assert set(runner.INSTRUCTION_TEST_MODULES) == set(range(1, 49))
-    assert set(runner.OBVIOUS_INJECTION_TEST_MODULES) == (set(range(1, 39)) - {12, 13})
+    # 39-44 are the camera-ready phishing/poisoning injections
+    # (data/obvious_injections_camready_phish_poison.json).
+    assert set(runner.OBVIOUS_INJECTION_TEST_MODULES) == (set(range(1, 45)) - {12, 13})
     assert callable(runner.get_test_function(48))
     assert callable(runner.get_obvious_test_function(38))
+    assert callable(runner.get_obvious_test_function(44))

@@ -1,13 +1,16 @@
 """Shared configuration for the SKILL-INJECT benchmark."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 DATA_DIR = PROJECT_ROOT / "data"
 SKILL_ROOT = DATA_DIR / "skills"
-FINAL_RESULTS_DIR = PROJECT_ROOT / "final_results"
+FINAL_RESULTS_DIR = Path(
+    os.environ.get("SKILL_INJECT_RESULTS_DIR", PROJECT_ROOT / "final_results")
+).resolve()
 DOCKER_DIR = PROJECT_ROOT / "docker"
 STARTUP_SCRIPTS_DIR = PROJECT_ROOT / "startup_scripts"
 
@@ -43,6 +46,7 @@ AGENT_MODELS: dict[str, list[dict[str, str]]] = {
         {"model": "claude-sonnet-4-6", "display_name": "Claude Code (Sonnet 4.6)"},
         {"model": "claude-sonnet-4-5", "display_name": "Claude Code (Sonnet 4.5)"},
         {"model": "claude-opus-4-5-20251101", "display_name": "Claude Code (Opus)"},
+        {"model": "claude-haiku-4-5-20251001", "display_name": "Claude Code (Haiku 4.5)"},
         {"model": "haiku", "display_name": "Claude Code (Haiku)"},
     ],
     "gemini": [
@@ -108,6 +112,7 @@ MODEL_CLI_MAP: dict[str, tuple[str, str]] = {
     "claude-sonnet-4-6": ("claude", "claude-sonnet-4-6"),
     "claude-sonnet-4-5": ("claude", "claude-sonnet-4-5"),
     "claude-opus-4-5-20251101": ("claude", "claude-opus-4-5-20251101"),
+    "claude-haiku-4-5-20251001": ("claude", "claude-haiku-4-5-20251001"),
     "haiku": ("claude", "haiku"),
     "gemini-2.5-pro": ("gemini", "gemini-2.5-pro"),
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),

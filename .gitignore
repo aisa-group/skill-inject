@@ -1,9 +1,11 @@
 ablations/
+!experiments/ablations/
 skill-inject/
 .env
 # Experiment outputs
 final_results/
 sandboxes/
+!tests/fixtures/sandboxes/
 sandbox_archives/
 logs/
 
@@ -33,14 +35,6 @@ apptainer/smoke_test.sh
 docker/.env
 apptainer/.env
 
-# Evolutionary optimization / RL ablations
-experiments/ablations/evolutionary_optimization.py
-experiments/ablations/grpo_injection_optimization.py
-experiments/ablations/rl_policy_gradient.py
-tests/test_evolutionary_optimization.py
-tests/test_rl_policy_gradient.py
-requirements_grpo.txt
-
 # Python
 __pycache__/
 *.pyc
@@ -51,7 +45,22 @@ __pycache__/
 uv.lock
 *.egg-info/
 
+# Local rerun campaigns (sandboxes, agent transcripts, ledgers, Condor logs)
+reruns/
+
+# Cluster-specific HTCondor submit files and DAGMan logs (hardcoded user paths)
+scripts/*.sub
+scripts/*.dag
+scripts/*.dag.*
+
+# Local scratch
+*.orig
+annotator_package.zip
+
+# Private local rebuttal workflow and author-commitment record
+.codex/skills/subscription-experiment-runs/
+.codex/rebuttal-commitments.md
+
 # OS
 .DS_Store
 Thumbs.db
-

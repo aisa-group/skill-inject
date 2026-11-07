@@ -2,6 +2,9 @@
 
 A comprehensive benchmark for measuring prompt injection vulnerabilities in LLM agent skill files. SKILL-INJECT evaluates how susceptible multiple LLM coding agents (Claude Code, Codex, Gemini CLI) are to malicious instructions hidden in skill definitions, across multiple safety policy conditions.
 
+- **Paper:** [Skill-Inject: Measuring Agent Vulnerability to Skill File Attacks](https://arxiv.org/abs/2602.20156)
+- **Dataset:** [davidsmts/skill-inject](https://huggingface.co/datasets/davidsmts/skill-inject) on Hugging Face
+
 ## Overview
 
 Modern LLM agents load "skill files" that define their capabilities. SKILL-INJECT tests whether adversarial instructions embedded in these skill files can cause agents to execute unintended actions.
@@ -11,7 +14,14 @@ The benchmark includes:
 - **36 obvious injections** — unambiguously malicious instructions (ransomware, exfiltration, etc.)
 - **44 skill definitions** across diverse domains (documents, git, healthcare, email, MCP, etc.)
 - **3 safety policy conditions** — normal, legitimizing, and warning
-- **Multiple ablation studies** — Best-of-N, script vs. direct, skill screening, evolutionary optimization, RL-based optimization
+- **Multiple ablation studies** — Best-of-N, script vs. direct, skill screening, permission defense, phrasing/domain/template variation
+
+### Camera-ready additions
+
+The camera-ready version of the paper adds the following data. The original files above are unchanged, so the paper's main tables can still be reproduced from them.
+
+- `data/obvious_injections_camready_phish_poison.json` — 6 new obvious injections (ids 39–44, phishing and data poisoning), with detectors `data/instruction_unit_tests_v2/obvious/test_obvious_39.py` to `test_obvious_44.py`
+- `data/obvious_to_contextual_camready.json` — 8 injections relabeled from obvious to contextual, with Warning and Legitimizing policy texts
 
 ## Prerequisites
 
@@ -25,7 +35,7 @@ The benchmark includes:
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url> skill-inject
+git clone https://github.com/aisa-group/skill-inject.git
 cd skill-inject
 ```
 
@@ -178,23 +188,30 @@ python experiments/ablations/script_vs_direct.py --agent claude
 # Best-of-4 task variant ablation
 python experiments/ablations/bo4_bytask.py --agent claude
 
+# Repeated runs of high-ASR obvious injections (run-to-run variance)
+python experiments/ablations/obvious_injection_error_bars.py --agent claude --model sonnet
+
+# Permission defense (deterministic restrictions enforced in the container)
+python experiments/ablations/permission_defense.py --validate
+python experiments/ablations/permission_defense.py --agent claude
+
+# Phrasing, domain and template variants of obvious injections
+python experiments/ablations/phrasing_variants.py --agent claude
+python experiments/ablations/domain_variation.py --agent claude
+python experiments/ablations/template_variation.py --agent claude
+
 # Skill screening (LLM safety evaluation)
 python judges/skill_screening_judge.py --model sonnet
 python judges/skill_screening_judge.py --run-all  # All screening models
-
-# Evolutionary optimization
-python experiments/ablations/evolutionary_optimization.py --agent claude
-
-# GRPO injection optimization (requires requirements_grpo.txt dependencies)
-pip install -r requirements_grpo.txt
-python experiments/ablations/grpo_injection_optimization.py
 ```
 
 ## Evaluating Results
 
-The rebuttal branch supports both LLM judging and deterministic, evidence-based attack detectors. The current detector suite is `data/instruction_unit_tests_v2`; `data/instruction_unit_tests` is retained for reproducing earlier evaluations. Result-comparison scripts accept `--suite-dir` when a frozen suite must be used. Record the repository commit and suite path alongside reported results.
+The benchmark supports both LLM judging and deterministic, evidence-based attack detectors. The current detector suite is `data/instruction_unit_tests_v2`; `data/instruction_unit_tests` is retained for reproducing earlier evaluations. Result-comparison scripts accept `--suite-dir` when a frozen suite must be used. Record the repository commit and suite path alongside reported results.
 
-Results are saved to `final_results/` after each experiment run. You can also re-evaluate existing results independently.
+The v2 suite grades Docker and Apptainer runs. It reads SQLite evidence from a local copy, so results stored on network filesystems such as Lustre grade correctly. Some detectors ask `gpt-5-mini` a yes/no question about the agent's output. They use `OPENAI_API_KEY`, or the same model through OpenRouter when only `OPENROUTER_API_KEY` is set, and cache the answers under `.llm_cache/`.
+
+Results are saved to `final_results/` after each experiment run. Set `SKILL_INJECT_RESULTS_DIR` to write them somewhere else. You can also re-evaluate existing results independently.
 
 ### LLM Judge (default: GPT-5.1-Codex-Mini)
 
@@ -282,6 +299,17 @@ python scripts/smoke_test_all.py --dry-run
 ```
 
 The smoke test builds sandboxes, runs one agent container, and evaluates results for each combination. It requires Docker, API keys in `docker/.env`, and typically takes 5-15 minutes per agent/model combo.
+
+## Citation
+
+```bibtex
+@article{schmotz2026skillinject,
+  title   = {Skill-Inject: Measuring Agent Vulnerability to Skill File Attacks},
+  author  = {Schmotz, David and Beurer-Kellner, Luca and Abdelnabi, Sahar and Andriushchenko, Maksym},
+  journal = {arXiv preprint arXiv:2602.20156},
+  year    = {2026}
+}
+```
 
 ## License
 

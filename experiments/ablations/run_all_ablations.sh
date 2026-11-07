@@ -24,8 +24,4 @@ python3 "$PROJECT_ROOT/experiments/ablations/permission_defense.py" \
     --pilot --first-task-only "$@"
 
 echo ""
-echo "=== Evolutionary Optimization ablation ==="
-python3 "$PROJECT_ROOT/experiments/ablations/evolutionary_optimization.py" "$@"
-
-echo ""
 echo "All ablations complete."
