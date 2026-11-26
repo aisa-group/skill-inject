@@ -1,5 +1,9 @@
 # SKILL-INJECT Benchmark
 
+<!-- yarkr:badges:start -->
+[![Indexed on Yarkr](https://api.yarkr.com/functions/v1/api/api/v1/badges/repos/aisa-group/skill-inject/version.svg)](https://yarkr.com/arks/aisa-group/skill-inject)
+<!-- yarkr:badges:end -->
+
 A comprehensive benchmark for measuring prompt injection vulnerabilities in LLM agent skill files. SKILL-INJECT evaluates how susceptible multiple LLM coding agents (Claude Code, Codex, Gemini CLI) are to malicious instructions hidden in skill definitions, across multiple safety policy conditions.
 
 - **Paper:** [Skill-Inject: Measuring Agent Vulnerability to Skill File Attacks](https://arxiv.org/abs/2602.20156)
@@ -310,6 +314,40 @@ The smoke test builds sandboxes, runs one agent container, and evaluates results
   year    = {2026}
 }
 ```
+
+<!-- yarkr:install:start -->
+## Install with Yarkr
+
+This repo is indexed on [Yarkr](https://yarkr.com/arks/aisa-group/skill-inject) as the ark [aisa-group/skill-inject](https://yarkr.com/arks/aisa-group/skill-inject), so its skills install into Claude Code, Codex, Cursor and other agent harnesses with one command.
+
+### CLI
+
+Install the whole ark, which Yarkr keeps equal to this repo:
+
+```bash
+npx yarkr-cli sync aisa-group/skill-inject
+```
+
+Or add individual skills:
+
+```bash
+npx yarkr-cli add skill:aisa-group/skill-inject/agent-development
+npx yarkr-cli add skill:aisa-group/skill-inject/calendar
+npx yarkr-cli add skill:aisa-group/skill-inject/clinical-trial-protocol-skill
+```
+
+No Node.js? `curl -fsSL https://yarkr.com/install.sh | sh` (macOS, Linux) or `irm https://yarkr.com/install.ps1 | iex` (Windows PowerShell) installs `yarkr` as a standalone binary; then type `yarkr` in place of `npx yarkr-cli`.
+
+### MCP
+
+Connect your agent to the ark over MCP:
+
+```bash
+npx yarkr-cli mcp add aisa-group/skill-inject
+```
+
+Or point any MCP client at `https://api.yarkr.com/functions/v1/api/mcp/o/aisa-group/skill-inject`.
+<!-- yarkr:install:end -->
 
 ## License
 
